@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import { MapPin, Phone, Check, User, Clock } from 'lucide-react'
 import { toast } from 'sonner'
 import api from '../lib/api'
 import { useAuth } from '../context/AuthContext'
+import { queryKeys, fetchShop } from '../lib/queries'
 import { Button } from '../components/ui/Button'
 import { Card, Badge } from '../components/ui/Card'
 import { Select, Textarea } from '../components/ui/Input'
@@ -15,48 +17,71 @@ export default function ShopDetail() {
   const { id } = useParams()
   const { user, isAuth } = useAuth()
   const navigate = useNavigate()
-  const [shop, setShop] = useState(null)
-  const [windows, setWindows] = useState([])
+  const queryClient = useQueryClient()
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10))
   const [selectedService, setSelectedService] = useState('')
   const [selectedWindow, setSelectedWindow] = useState(null)
   const [notes, setNotes] = useState('')
-  const [loading, setLoading] = useState(true)
   const [booking, setBooking] = useState(false)
+
+  const { data: shop, isLoading, error: shopError } = useQuery({
+    queryKey: queryKeys.shop(id),
+    queryFn: () => fetchShop(id),
+    enabled: !!id,
+  })
+
+  useEffect(() => {
+    if (shopError) toast.error('Shop not found')
+  }, [shopError])
+
+  useEffect(() => {
+    if (shop?.services?.[0]) {
+      setSelectedService(shop.services[0].name)
+    }
+  }, [shop])
 
   const selectedSvc = shop?.services?.find((s) => s.name === selectedService)
   const serviceDuration = selectedSvc?.duration || 30
 
-  useEffect(() => {
-    const load = async () => {
-      setLoading(true)
-      try {
-        const { data } = await api.get(`/businesses/${id}`)
-        setShop(data.business)
-        if (data.business.services?.[0]) {
-          setSelectedService(data.business.services[0].name)
-        }
-      } catch {
-        toast.error('Shop not found')
-      } finally {
-        setLoading(false)
-      }
-    }
-    load()
-  }, [id])
-
-  useEffect(() => {
-    if (!id || !date) return
-    api
-      .get('/slots/windows', {
+  const { data: windows = [] } = useQuery({
+    queryKey: ['slots', 'windows', id, date, serviceDuration],
+    queryFn: async () => {
+      const { data } = await api.get('/slots/windows', {
         params: { businessId: id, date, duration: serviceDuration },
       })
-      .then((res) => setWindows(res.data.windows))
-      .catch(() => setWindows([]))
-    setSelectedWindow(null)
-  }, [id, date, serviceDuration])
+      return data.windows
+    },
+    enabled: !!id && !!date,
+  })
 
-  const book = async () => {
+  useEffect(() => {
+    setSelectedWindow(null)
+  }, [date, serviceDuration])
+
+  const bookMutation = useMutation({
+    mutationFn: async () => {
+      const svc = shop.services.find((s) => s.name === selectedService)
+      const { data } = await api.post('/bookings', {
+        businessId: id,
+        slotIds: selectedWindow.slotIds,
+        service: { name: svc.name, price: svc.price, duration: svc.duration },
+        notes,
+      })
+      return data
+    },
+    onSuccess: (data) => {
+      toast.success(data.message)
+      queryClient.invalidateQueries({ queryKey: ['bookings'] })
+      queryClient.invalidateQueries({ queryKey: ['slots'] })
+      navigate('/dashboard')
+    },
+    onError: (err) => {
+      toast.error(err.response?.data?.message || 'Booking failed')
+    },
+    onSettled: () => setBooking(false),
+  })
+
+  const book = () => {
     if (!isAuth) {
       toast.message('Please log in to book')
       navigate('/login', { state: { from: `/shops/${id}` } })
@@ -70,29 +95,11 @@ export default function ShopDetail() {
       toast.error('Select a service and time slot')
       return
     }
-    const svc = shop.services.find((s) => s.name === selectedService)
     setBooking(true)
-    try {
-      const { data } = await api.post('/bookings', {
-        businessId: id,
-        slotIds: selectedWindow.slotIds,
-        service: {
-          name: svc.name,
-          price: svc.price,
-          duration: svc.duration,
-        },
-        notes,
-      })
-      toast.success(data.message)
-      navigate('/dashboard')
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Booking failed')
-    } finally {
-      setBooking(false)
-    }
+    bookMutation.mutate()
   }
 
-  if (loading) return <PageLoader />
+  if (isLoading) return <PageLoader />
   if (!shop) return null
 
   const cover =
@@ -104,95 +111,89 @@ export default function ShopDetail() {
 
   return (
     <div className="mx-auto max-w-[1300px] px-4 py-10 sm:px-6">
-      {/* Top Section: Hero + About (Combined Card) */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        className="flex flex-col lg:flex-row overflow-hidden rounded-[2rem] border border-stone-200 bg-white shadow-sm"
+        className="relative w-full min-h-[350px] overflow-hidden rounded-[2rem] border border-stone-200 bg-stone-200 shadow-sm"
       >
-        {/* Left: Hero */}
-        <div className="relative w-full lg:w-3/5 min-h-[300px] bg-stone-200">
-          <img
-            src={cover}
-            alt={shop.name}
-            className="absolute inset-0 h-full w-full object-cover"
-            onError={(e) => {
-              e.currentTarget.src =
-                'https://images.unsplash.com/photo-1598887142487-3c854d19bb35?w=1200&q=80&auto=format&fit=crop'
-            }}
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-ink/80 via-ink/20 to-transparent" />
-          <div className="absolute bottom-0 left-0 p-6 text-cream sm:p-8">
-            <div className="flex items-end gap-4">
-              {shop.owner?.avatar ? (
-                <img
-                  src={shop.owner.avatar}
-                  alt={shop.owner?.name || 'Owner'}
-                  className="hidden h-14 w-14 shrink-0 rounded-full border-2 border-white object-cover shadow-lg sm:block"
-                />
-              ) : (
-                <div className="hidden h-14 w-14 shrink-0 items-center justify-center rounded-full border-2 border-white bg-stone-400 shadow-lg sm:flex">
-                  <User className="h-6 w-6 text-stone-200" />
-                </div>
-              )}
-              <div>
-                <h1 className="font-display text-4xl sm:text-5xl">{shop.name}</h1>
-                <p className="mt-2 flex items-center gap-2 text-sm text-stone-200">
-                  <MapPin className="h-4 w-4 shrink-0" />
-                  {shop.address}
-                  {shop.city ? `, ${shop.city}` : ''}
-                </p>
+        <img
+          src={cover}
+          alt={shop.name}
+          className="absolute inset-0 h-full w-full object-cover"
+          onError={(e) => {
+            e.currentTarget.src =
+              'https://images.unsplash.com/photo-1598887142487-3c854d19bb35?w=1200&q=80&auto=format&fit=crop'
+          }}
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-ink/90 via-ink/30 to-transparent" />
+        <div className="absolute bottom-0 left-0 p-6 text-cream sm:p-8">
+          <div className="flex items-end gap-4">
+            {shop.owner?.avatar ? (
+              <img
+                src={shop.owner.avatar}
+                alt={shop.owner?.name || 'Owner'}
+                className="hidden h-14 w-14 shrink-0 rounded-full border-2 border-white object-cover shadow-lg sm:block"
+              />
+            ) : (
+              <div className="hidden h-14 w-14 shrink-0 items-center justify-center rounded-full border-2 border-white bg-stone-400 shadow-lg sm:flex">
+                <User className="h-6 w-6 text-stone-200" />
               </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Right: About */}
-        <div className="w-full lg:w-2/5 border-t border-stone-200 lg:border-t-0 lg:border-l p-6 sm:p-8 flex flex-col justify-center">
-          <h2 className="font-display text-2xl">About</h2>
-          <p className="mt-2 text-sm leading-relaxed text-stone-600">
-            {shop.description || 'No description provided.'}
-          </p>
-          <div className="mt-4 flex flex-wrap gap-4 text-sm text-stone-600">
-            {shop.phone && (
-              <span className="flex items-center gap-1.5">
-                <Phone className="h-4 w-4 text-bronze" /> {shop.phone}
-              </span>
             )}
+            <div>
+              <h1 className="font-display text-4xl sm:text-5xl">{shop.name}</h1>
+              <p className="mt-2 flex items-center gap-2 text-sm text-stone-200">
+                <MapPin className="h-4 w-4 shrink-0" />
+                {shop.address}
+                {shop.city ? `, ${shop.city}` : ''}
+              </p>
+            </div>
           </div>
-          {shop.owner && (
-            <div className="mt-4 flex items-center gap-3 rounded-2xl bg-cream px-4 py-3">
-              {shop.owner.avatar ? (
-                <img
-                  src={shop.owner.avatar}
-                  alt={shop.owner.name}
-                  className="h-10 w-10 shrink-0 rounded-full object-cover"
-                />
-              ) : (
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-stone-300">
-                  <User className="h-4 w-4 text-stone-500" />
-                </div>
-              )}
-              <div>
-                <p className="text-sm font-medium text-ink">{shop.owner.name}</p>
-                <p className="text-xs text-stone-500">Shop Owner</p>
-              </div>
-            </div>
-          )}
-          {shop.facilities?.length > 0 && (
-            <div className="mt-4 flex flex-wrap gap-2">
-              {shop.facilities.map((f) => (
-                <Badge key={f} className="border-stone-200 bg-cream text-stone-700">
-                  <Check className="mr-1 h-3 w-3" /> {f}
-                </Badge>
-              ))}
-            </div>
-          )}
         </div>
       </motion.div>
 
-      <div className="mt-8 grid gap-8 lg:grid-cols-5">
-        <div className="space-y-6 lg:col-span-3">
+      <div className="mt-8 grid gap-8 lg:grid-cols-5 items-start">
+        <div className="space-y-6 lg:col-span-3 order-2 lg:order-1">
+          <Card>
+            <h2 className="font-display text-2xl">About</h2>
+            <p className="mt-2 text-sm leading-relaxed text-stone-600">
+              {shop.description || 'No description provided.'}
+            </p>
+            <div className="mt-4 flex flex-wrap gap-4 text-sm text-stone-600">
+              {shop.phone && (
+                <span className="flex items-center gap-1.5">
+                  <Phone className="h-4 w-4 text-bronze" /> {shop.phone}
+                </span>
+              )}
+            </div>
+            {shop.owner && (
+              <div className="mt-4 flex items-center gap-3 rounded-2xl bg-cream px-4 py-3">
+                {shop.owner.avatar ? (
+                  <img
+                    src={shop.owner.avatar}
+                    alt={shop.owner.name}
+                    className="h-10 w-10 shrink-0 rounded-full object-cover"
+                  />
+                ) : (
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-stone-300">
+                    <User className="h-4 w-4 text-stone-500" />
+                  </div>
+                )}
+                <div>
+                  <p className="text-sm font-medium text-ink">{shop.owner.name}</p>
+                  <p className="text-xs text-stone-500">Shop Owner</p>
+                </div>
+              </div>
+            )}
+            {shop.facilities?.length > 0 && (
+              <div className="mt-4 flex flex-wrap gap-2">
+                {shop.facilities.map((f) => (
+                  <Badge key={f} className="border-stone-200 bg-cream text-stone-700">
+                    <Check className="mr-1 h-3 w-3" /> {f}
+                  </Badge>
+                ))}
+              </div>
+            )}
+          </Card>
 
           <Card>
             <h2 className="font-display text-2xl">Services</h2>
@@ -238,7 +239,7 @@ export default function ShopDetail() {
           </Card>
         </div>
 
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-2 order-1 lg:order-2">
           <Card className="sticky top-24">
             <h2 className="font-display text-2xl">Book appointment</h2>
             <p className="mt-1 text-sm text-stone-500">Request a slot — owner will accept or reject.</p>
@@ -269,36 +270,69 @@ export default function ShopDetail() {
 
               <div>
                 <p className="mb-2 text-sm font-medium text-stone-700">
-                  Available {serviceDuration}-min slots
+                  {serviceDuration}-min slots
                 </p>
-                {windows.length > 0 ? (
-                  <div className="grid grid-cols-2 gap-2">
-                    {windows.map((w) => (
-                      <button
-                        key={w.slotIds.join('-')}
-                        type="button"
-                        onClick={() => setSelectedWindow(w)}
-                        className={cn(
-                          'rounded-xl border px-3 py-2.5 text-xs font-medium transition',
-                          selectedWindow === w
-                            ? 'border-bronze bg-bronze text-white'
-                            : 'border-stone-200 bg-cream hover:border-bronze/40'
-                        )}
-                      >
-                        <span className="flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
-                          {w.startTime} – {w.endTime}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="rounded-xl border border-stone-100 bg-cream/50 px-4 py-6 text-center text-sm text-stone-500">
-                    No {serviceDuration}-min slots available for this date.
-                    <br />
-                    <span className="text-xs text-stone-400">Try another date or contact the shop.</span>
-                  </div>
-                )}
+                {(() => {
+                  if (windows.length === 0) {
+                    return (
+                      <div className="rounded-xl border border-stone-100 bg-cream/50 px-4 py-6 text-center text-sm text-stone-500">
+                        No {serviceDuration}-min slots available for this date.
+                        <br />
+                        <span className="text-xs text-stone-400">Try another date or contact the shop.</span>
+                      </div>
+                    )
+                  }
+
+                  const displayWindows = []
+                  let currentGroup = null
+
+                  windows.forEach((w) => {
+                    if (w.available) {
+                      if (currentGroup) {
+                        displayWindows.push(currentGroup)
+                        currentGroup = null
+                      }
+                      displayWindows.push(w)
+                    } else {
+                      if (!currentGroup) {
+                        currentGroup = { ...w, isGroup: true, groupStartTime: w.startTime, groupEndTime: w.endTime }
+                      } else {
+                        currentGroup.groupEndTime = w.endTime
+                        currentGroup.slotIds = [...currentGroup.slotIds, ...w.slotIds]
+                      }
+                    }
+                  })
+                  if (currentGroup) displayWindows.push(currentGroup)
+
+                  return (
+                    <div className="grid grid-cols-2 gap-2">
+                      {displayWindows.map((w, idx) => (
+                        <button
+                          key={w.isGroup ? `group-${idx}` : w.slotIds.join('-')}
+                          type="button"
+                          onClick={() => w.available && setSelectedWindow(w)}
+                          disabled={!w.available}
+                          className={cn(
+                            'flex items-center justify-center gap-1 rounded-xl border px-2 py-2.5 text-[11px] sm:text-xs font-medium transition',
+                            !w.available && 'cursor-not-allowed border-stone-200 bg-stone-100 text-stone-400',
+                            w.available && selectedWindow === w && 'border-bronze bg-bronze text-white',
+                            w.available && selectedWindow !== w && 'border-stone-200 bg-cream hover:border-bronze/40'
+                          )}
+                        >
+                          <Clock className={cn('h-3 w-3 shrink-0', !w.available && 'text-stone-300')} />
+                          <span className="whitespace-nowrap">
+                            {w.isGroup ? `${w.groupStartTime} – ${w.groupEndTime}` : `${w.startTime} – ${w.endTime}`}
+                          </span>
+                          {!w.available && (
+                            <span className="text-[10px] uppercase tracking-wider text-stone-400 font-semibold ml-0.5 whitespace-nowrap">
+                              (Booked)
+                            </span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )
+                })()}
               </div>
 
               <Textarea

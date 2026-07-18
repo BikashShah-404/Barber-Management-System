@@ -24,7 +24,9 @@ import {
   ChevronDown,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../../lib/api'
+import { queryKeys, fetchAdminBusinesses, fetchAdminBookings, fetchAdminUsers } from '../../lib/queries'
 import { Button } from '../../components/ui/Button'
 import { Card, Badge } from '../../components/ui/Card'
 import { PageLoader } from '../../components/ui/Spinner'
@@ -39,86 +41,89 @@ const TABS = [
 
 export default function AdminDashboard() {
   const [tab, setTab] = useState('overview')
-  const [stats, setStats] = useState(null)
-  const [businesses, setBusinesses] = useState([])
-  const [users, setUsers] = useState([])
-  const [bookings, setBookings] = useState([])
   const [filter, setFilter] = useState('pending')
   const [filterOpen, setFilterOpen] = useState(false)
-  const [loading, setLoading] = useState(true)
+  const queryClient = useQueryClient()
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'instant' })
   }, [tab])
 
-  const loadStats = async () => {
-    const { data } = await api.get('/admin/dashboard')
-    setStats(data.stats)
-  }
+  const { data: stats, isLoading } = useQuery({
+    queryKey: ['admin', 'stats'],
+    queryFn: async () => {
+      const { data } = await api.get('/admin/dashboard')
+      return data.stats
+    },
+  })
 
-  const loadBusinesses = async (status = filter) => {
-    const { data } = await api.get('/admin/businesses', {
-      params: status === 'all' ? {} : { status },
-    })
-    setBusinesses(data.businesses)
-  }
+  const { data: businesses = [] } = useQuery({
+    queryKey: [...queryKeys.adminBusinesses, filter],
+    queryFn: async () => {
+      const { data } = await api.get('/admin/businesses', {
+        params: filter === 'all' ? {} : { status: filter },
+      })
+      return data.businesses
+    },
+    enabled: tab === 'businesses',
+  })
 
-  const loadUsers = async () => {
-    const { data } = await api.get('/admin/users')
-    setUsers(data.users)
-  }
+  const { data: users = [] } = useQuery({
+    queryKey: queryKeys.adminUsers,
+    queryFn: fetchAdminUsers,
+    enabled: tab === 'users',
+  })
 
-  const loadBookings = async () => {
-    const { data } = await api.get('/admin/bookings')
-    setBookings(data.bookings)
-  }
+  const { data: bookings = [] } = useQuery({
+    queryKey: queryKeys.adminBookings,
+    queryFn: fetchAdminBookings,
+    enabled: tab === 'bookings',
+  })
 
-  useEffect(() => {
-    const init = async () => {
-      setLoading(true)
-      try {
-        await loadStats()
-      } finally {
-        setLoading(false)
-      }
-    }
-    init()
-  }, [])
-
-  useEffect(() => {
-    if (tab === 'businesses') loadBusinesses(filter)
-    if (tab === 'users') loadUsers()
-    if (tab === 'bookings') loadBookings()
-    if (tab === 'overview') loadStats()
-  }, [tab, filter])
-
-  const review = async (id, status) => {
-    const rejectionReason =
-      status === 'rejected' ? prompt('Rejection reason (optional):') || '' : ''
-    try {
+  const reviewMutation = useMutation({
+    mutationFn: async ({ id, status, rejectionReason }) => {
       const { data } = await api.put(`/admin/businesses/${id}/review`, {
         status,
         rejectionReason,
       })
+      return data
+    },
+    onSuccess: (data) => {
       toast.success(data.message)
-      loadBusinesses(filter)
-      loadStats()
-    } catch (err) {
+      queryClient.invalidateQueries({ queryKey: queryKeys.adminBusinesses })
+      queryClient.invalidateQueries({ queryKey: ['admin', 'stats'] })
+      queryClient.invalidateQueries({ queryKey: ['shops'] })
+    },
+    onError: (err) => {
       toast.error(err.response?.data?.message || 'Failed')
-    }
-  }
+    },
+  })
 
-  const toggleUser = async (id) => {
-    try {
+  const toggleUserMutation = useMutation({
+    mutationFn: async (id) => {
       const { data } = await api.put(`/admin/users/${id}/toggle`)
+      return data
+    },
+    onSuccess: (data) => {
       toast.success(data.message)
-      loadUsers()
-    } catch (err) {
+      queryClient.invalidateQueries({ queryKey: queryKeys.adminUsers })
+    },
+    onError: (err) => {
       toast.error(err.response?.data?.message || 'Failed')
-    }
+    },
+  })
+
+  const review = (id, status) => {
+    const rejectionReason =
+      status === 'rejected' ? prompt('Rejection reason (optional):') || '' : ''
+    reviewMutation.mutate({ id, status, rejectionReason })
   }
 
-  if (loading) return <PageLoader />
+  const toggleUser = (id) => {
+    toggleUserMutation.mutate(id)
+  }
+
+  if (isLoading) return <PageLoader />
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 min-h-screen">
@@ -153,19 +158,19 @@ export default function AdminDashboard() {
         {tab === 'overview' && stats && (
           <div className="space-y-8">
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {[
-                { label: 'Customers', value: stats.users, color: 'from-zinc-50 to-white' },
-                { label: 'Barbers', value: stats.barbers, color: 'from-zinc-50 to-white' },
-                { label: 'Total shops', value: stats.businesses, color: 'from-stone-50 to-white' },
-                { label: 'Pending approval', value: stats.pendingBusinesses, color: 'from-zinc-50 to-white' },
-                { label: 'Approved shops', value: stats.approvedBusinesses, color: 'from-emerald-50 to-white' },
-                { label: 'Bookings', value: stats.bookings, color: 'from-sky-50 to-white' },
-              ].map((s) => (
-                <Card key={s.label} className={cn('bg-gradient-to-br', s.color)}>
-                  <p className="text-sm font-medium text-stone-500">{s.label}</p>
-                  <p className="mt-2 font-display text-4xl">{s.value}</p>
-                </Card>
-              ))}
+                {[
+                  { label: 'Customers', value: stats.users },
+                  { label: 'Barbers', value: stats.barbers },
+                  { label: 'Total shops', value: stats.businesses },
+                  { label: 'Pending approval', value: stats.pendingBusinesses },
+                  { label: 'Approved shops', value: stats.approvedBusinesses },
+                  { label: 'Bookings', value: stats.bookings },
+                ].map((s) => (
+                  <Card key={s.label}>
+                    <p className="text-sm font-medium text-stone-500">{s.label}</p>
+                    <p className="mt-2 font-display text-4xl text-ink">{s.value}</p>
+                  </Card>
+                ))}
             </div>
 
             <div className="grid gap-6 lg:grid-cols-2">

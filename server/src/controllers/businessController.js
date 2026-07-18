@@ -202,12 +202,14 @@ const getApprovedBusinesses = async (req, res) => {
         });
     }
 
-    businesses.sort((a, b) => {
-      const pa = a.promotion?.priority || 0;
-      const pb = b.promotion?.priority || 0;
-      if (pb !== pa) return pb - pa;
-      return new Date(b.createdAt) - new Date(a.createdAt);
-    });
+    if (!q && !service && !city) {
+      businesses.sort((a, b) => {
+        const pa = a.promotion?.priority || 0;
+        const pb = b.promotion?.priority || 0;
+        if (pb !== pa) return pb - pa;
+        return new Date(b.createdAt) - new Date(a.createdAt);
+      });
+    }
 
     res.json({ count: businesses.length, businesses });
   } catch (err) {
@@ -260,7 +262,6 @@ const nearestBusinesses = async (req, res) => {
   try {
     const lat = Number(req.query.lat);
     const lng = Number(req.query.lng);
-    const limit = Math.min(Number(req.query.limit) || 3, 20);
 
     if (Number.isNaN(lat) || Number.isNaN(lng)) {
       return res.status(400).json({ message: 'Valid lat and lng query params are required.' });
@@ -284,13 +285,7 @@ const nearestBusinesses = async (req, res) => {
           haversineDistance(lat, lng, b.latitude, b.longitude).toFixed(2)
         ),
       }))
-      .sort((a, b) => {
-        const pa = a.promotion?.priority || 0;
-        const pb = b.promotion?.priority || 0;
-        if (pb !== pa) return pb - pa;
-        return a.distanceKm - b.distanceKm;
-      })
-      .slice(0, limit);
+      .sort((a, b) => a.distanceKm - b.distanceKm);
 
     res.json({
       message: 'Nearest barbershops',

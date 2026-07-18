@@ -189,6 +189,17 @@ const respondToBooking = async (req, res) => {
     if (status === 'completed' && booking.status !== 'accepted') {
       return res.status(400).json({ message: 'Only accepted bookings can be marked completed.' });
     }
+    if (status === 'completed') {
+      const now = new Date();
+      const slotDate = booking.slots?.[0]?.date || booking.date;
+      const slotTime = booking.slots?.[0]?.startTime || '00:00';
+      const [h, m] = slotTime.split(':').map(Number);
+      const slotDateTime = new Date(slotDate);
+      slotDateTime.setHours(h, m, 0, 0);
+      if (slotDateTime > now) {
+        return res.status(400).json({ message: 'Cannot complete a future appointment.' });
+      }
+    }
 
     booking.status = status;
     if (ownerNote !== undefined) booking.ownerNote = ownerNote;

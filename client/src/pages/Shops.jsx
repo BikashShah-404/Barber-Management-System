@@ -1,14 +1,16 @@
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import gsap from 'gsap'
 import { useGSAP } from '@gsap/react'
+import { useQuery } from '@tanstack/react-query'
 
 import { Search, Filter, Navigation, Loader2, MapPin } from 'lucide-react'
 import { toast } from 'sonner'
 import api from '../lib/api'
+import { queryKeys, fetchShops } from '../lib/queries'
 import ShopCard from '../components/ShopCard'
 import { PageLoader } from '../components/ui/Spinner'
 import { EmptyState } from '../components/ui/EmptyState'
@@ -43,9 +45,6 @@ function MapRecenter({ center }) {
 export default function Shops() {
   const root = useRef(null)
   const [params, setParams] = useSearchParams()
-  const [shops, setShops] = useState([])
-  const [renderedShops, setRenderedShops] = useState([])
-  const [loading, setLoading] = useState(true)
   const [q, setQ] = useState(params.get('q') || '')
   const [service, setService] = useState(params.get('service') || '')
   const [city, setCity] = useState(params.get('city') || '')
@@ -53,27 +52,20 @@ export default function Shops() {
   const [locating, setLocating] = useState(false)
   const [showMap, setShowMap] = useState(false)
   const [mapPick, setMapPick] = useState(null)
+  const [renderedShops, setRenderedShops] = useState([])
 
-  const load = async (query = {}) => {
-    setLoading(true)
-    try {
-      let data;
-      if (query.lat && query.lng) {
-        const res = await api.get('/businesses/nearest', { params: { ...query, limit: 12 } })
-        data = res.data
-      } else {
-        const res = await api.get('/businesses', { params: query })
-        data = res.data
-      }
-      setShops(data.businesses)
-      setRenderedShops(data.businesses.slice(0, 6))
-    } catch {
-      setShops([])
-      setRenderedShops([])
-    } finally {
-      setLoading(false)
-    }
-  }
+  const queryParams = useMemo(() => ({
+    q: params.get('q') || undefined,
+    service: params.get('service') || undefined,
+    city: params.get('city') || undefined,
+    lat: params.get('lat') || undefined,
+    lng: params.get('lng') || undefined,
+  }), [params])
+
+  const { data: shops = [], isLoading: loading } = useQuery({
+    queryKey: queryKeys.shops(queryParams),
+    queryFn: () => fetchShops(queryParams),
+  })
 
   const findNearMe = () => {
     if (!navigator.geolocation) {
@@ -99,25 +91,17 @@ export default function Shops() {
     )
   }
 
-  useEffect(() => {
-    load({
-      q: params.get('q') || undefined,
-      service: params.get('service') || undefined,
-      city: params.get('city') || undefined,
-      lat: params.get('lat') || undefined,
-      lng: params.get('lng') || undefined,
-    })
-  }, [params])
-
   // Defer rendering of off-screen cards to prevent main-thread freeze
   // from stuttering the initial GSAP text animations
   useEffect(() => {
     if (shops.length > 6) {
+      setRenderedShops(shops.slice(0, 6))
       const timer = setTimeout(() => {
         setRenderedShops(shops)
       }, 1500)
       return () => clearTimeout(timer)
     }
+    setRenderedShops(shops)
   }, [shops])
 
   useGSAP(

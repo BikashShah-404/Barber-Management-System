@@ -3,7 +3,9 @@ import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Calendar, User, XCircle, Scissors } from 'lucide-react'
 import { toast } from 'sonner'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../../lib/api'
+import { queryKeys } from '../../lib/queries'
 import { useAuth } from '../../context/AuthContext'
 import { Button } from '../../components/ui/Button'
 import { Card, Badge } from '../../components/ui/Card'
@@ -14,9 +16,8 @@ import { formatPrice, statusColor } from '../../lib/utils'
 
 export default function UserDashboard() {
   const { user, updateUser } = useAuth()
+  const queryClient = useQueryClient()
   const [tab, setTab] = useState('bookings')
-  const [bookings, setBookings] = useState([])
-  const [loading, setLoading] = useState(true)
   const [profile, setProfile] = useState({
     name: user?.name || '',
     phone: user?.phone || '',
@@ -28,31 +29,28 @@ export default function UserDashboard() {
     window.scrollTo({ top: 0, behavior: 'instant' })
   }, [tab])
 
-  const loadBookings = async () => {
-    setLoading(true)
-    try {
-      const { data } = await api.get('/bookings/mine')
-      setBookings(data.bookings)
-    } catch {
-      setBookings([])
-    } finally {
-      setLoading(false)
-    }
-  }
+  const { data: bookings = [], isLoading: loading } = useQuery({
+    queryKey: queryKeys.bookings,
+    queryFn: async () => { const { data } = await api.get('/bookings/mine'); return data.bookings; }
+  })
 
-  useEffect(() => {
-    loadBookings()
-  }, [])
-
-  const cancel = async (id) => {
-    if (!confirm('Cancel this booking?')) return
-    try {
+  const cancelMutation = useMutation({
+    mutationFn: async (id) => {
       const { data } = await api.put(`/bookings/${id}/cancel`)
+      return data
+    },
+    onSuccess: (data) => {
       toast.success(data.message)
-      loadBookings()
-    } catch (err) {
+      queryClient.invalidateQueries({ queryKey: queryKeys.bookings })
+    },
+    onError: (err) => {
       toast.error(err.response?.data?.message || 'Cancel failed')
     }
+  })
+
+  const cancel = (id) => {
+    if (!confirm('Cancel this booking?')) return
+    cancelMutation.mutate(id)
   }
 
   const saveProfile = async (e) => {

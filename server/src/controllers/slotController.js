@@ -252,27 +252,30 @@ const getSlotWindows = async (req, res) => {
       business: businessId,
       date,
       isActive: true,
-      isBooked: false,
     }).sort({ startTime: 1 });
 
     if (slots.length === 0) {
       return res.json({ windows: [] });
     }
 
-    // Group consecutive slots into windows matching the service duration
     const windows = [];
+
+    // Build available windows from consecutive free slots
     for (let i = 0; i < slots.length; i++) {
+      if (slots[i].isBooked) continue;
+
       let totalMinutes = 0;
       const windowSlots = [];
 
       for (let j = i; j < slots.length; j++) {
+        if (slots[j].isBooked) break;
+
         const slotStart = toMinutes(slots[j].startTime);
         const slotEnd = toMinutes(slots[j].endTime);
 
-        // Check this slot is contiguous with previous
         if (windowSlots.length > 0) {
           const prevEnd = toMinutes(slots[j - 1].endTime);
-          if (slotStart !== prevEnd) break; // gap — start fresh
+          if (slotStart !== prevEnd) break;
         }
 
         totalMinutes += slotEnd - slotStart;
@@ -284,11 +287,41 @@ const getSlotWindows = async (req, res) => {
             endTime: windowSlots[windowSlots.length - 1].endTime,
             duration: totalMinutes,
             slotIds: windowSlots.map((s) => s._id),
+            available: true,
           });
           break;
         }
       }
     }
+
+    // Build booked windows from consecutive booked slots (any contiguous run)
+    for (let i = 0; i < slots.length; i++) {
+      if (!slots[i].isBooked) continue;
+
+      const bookedSlots = [];
+      for (let j = i; j < slots.length; j++) {
+        if (!slots[j].isBooked) break;
+        if (bookedSlots.length > 0) {
+          const prevEnd = toMinutes(slots[j - 1].endTime);
+          const slotStart = toMinutes(slots[j].startTime);
+          if (slotStart !== prevEnd) break;
+        }
+        bookedSlots.push(slots[j]);
+      }
+
+      const totalMins = bookedSlots.reduce((sum, s) => sum + toMinutes(s.endTime) - toMinutes(s.startTime), 0);
+      windows.push({
+        startTime: bookedSlots[0].startTime,
+        endTime: bookedSlots[bookedSlots.length - 1].endTime,
+        duration: totalMins,
+        slotIds: bookedSlots.map((s) => s._id),
+        available: false,
+      });
+
+      i += bookedSlots.length - 1;
+    }
+
+    windows.sort((a, b) => toMinutes(a.startTime) - toMinutes(b.startTime));
 
     res.json({ windows });
   } catch (err) {
