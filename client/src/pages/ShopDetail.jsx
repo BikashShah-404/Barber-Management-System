@@ -23,6 +23,7 @@ export default function ShopDetail() {
   const [selectedWindow, setSelectedWindow] = useState(null)
   const [notes, setNotes] = useState('')
   const [booking, setBooking] = useState(false)
+  const [selectedImage, setSelectedImage] = useState(null)
 
   const { data: shop, isLoading, error: shopError } = useQuery({
     queryKey: queryKeys.shop(id),
@@ -102,10 +103,12 @@ export default function ShopDetail() {
   if (isLoading) return <PageLoader />
   if (!shop) return null
 
-  const cover =
+  const defaultCover =
     shop.coverImage ||
     shop.images?.[0] ||
     'https://images.unsplash.com/photo-1598887142487-3c854d19bb35?w=1200&q=80&auto=format&fit=crop'
+
+  const displayCover = selectedImage || defaultCover
 
   const mapSrc = `https://www.openstreetmap.org/export/embed.html?bbox=${shop.longitude - 0.02}%2C${shop.latitude - 0.015}%2C${shop.longitude + 0.02}%2C${shop.latitude + 0.015}&layer=mapnik&marker=${shop.latitude}%2C${shop.longitude}`
 
@@ -117,7 +120,7 @@ export default function ShopDetail() {
         className="relative w-full min-h-[350px] overflow-hidden rounded-[2rem] border border-stone-200 bg-stone-200 shadow-sm"
       >
         <img
-          src={cover}
+          src={displayCover}
           alt={shop.name}
           className="absolute inset-0 h-full w-full object-cover"
           onError={(e) => {
@@ -150,6 +153,21 @@ export default function ShopDetail() {
           </div>
         </div>
       </motion.div>
+
+      {shop.images?.length > 1 && (
+        <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
+          {shop.images.map((img, i) => (
+            <img
+              key={i}
+              src={img}
+              alt={`${shop.name} ${i + 1}`}
+              onClick={() => setSelectedImage(img)}
+              className={`h-20 w-28 shrink-0 cursor-pointer rounded-xl border-2 object-cover transition hover:opacity-100 ${img === displayCover ? 'border-bronze opacity-100' : 'border-stone-200 opacity-60'}`}
+              onError={(e) => { e.currentTarget.style.display = 'none' }}
+            />
+          ))}
+        </div>
+      )}
 
       <div className="mt-8 grid gap-8 lg:grid-cols-5 items-start">
         <div className="space-y-6 lg:col-span-3 order-2 lg:order-1">

@@ -64,30 +64,37 @@ const createBulkSlots = async (req, res) => {
       return res.status(400).json({ message: 'Invalid time slot range or interval.' });
     }
 
-    // Check for overlapping existing slots
-    const existingSlots = await Slot.find({
+    // Delete existing unbooked slots for this date (replace behavior)
+    const deleteResult = await Slot.deleteMany({
       business: business._id,
       date,
-      isActive: true,
+      isBooked: false,
+    });
+
+    // Get booked slots to avoid overlapping new slots with them
+    const bookedSlots = await Slot.find({
+      business: business._id,
+      date,
+      isBooked: true,
     });
 
     const slots = [];
     for (let t = start; t + interval <= end; t += interval) {
-      const slotStart = toTime(t);
-      const slotEnd = toTime(t + interval);
+      const slotStart = t;
+      const slotEnd = t + interval;
 
-      const overlaps = existingSlots.some((existing) => {
-        const exStart = toMinutes(existing.startTime);
-        const exEnd = toMinutes(existing.endTime);
-        return t < exEnd && t + interval > exStart;
+      const overlapsBooked = bookedSlots.some((bs) => {
+        const bsStart = toMinutes(bs.startTime);
+        const bsEnd = toMinutes(bs.endTime);
+        return slotStart < bsEnd && slotEnd > bsStart;
       });
 
-      if (!overlaps) {
+      if (!overlapsBooked) {
         slots.push({
           business: business._id,
           date,
-          startTime: slotStart,
-          endTime: slotEnd,
+          startTime: toTime(t),
+          endTime: toTime(t + interval),
         });
       }
     }
@@ -102,10 +109,15 @@ const createBulkSlots = async (req, res) => {
       }
     }
 
+    const totalDeleted = deleteResult.deletedCount || 0;
+
     res.status(201).json({
-      message: 'Time slots created successfully',
+      message: totalDeleted > 0
+        ? `Replaced ${totalDeleted} old slots · Created ${created.length} new slots`
+        : `Created ${created.length} slots`,
       count: created.length,
       skipped: slots.length - created.length,
+      totalDeleted,
       slots: created,
     });
   } catch (err) {
@@ -168,20 +180,38 @@ const createRecurringSlots = async (req, res) => {
       });
       totalDeleted += deleteResult.deletedCount || 0;
 
+      // Get booked slots to avoid overlapping new slots with them
+      const bookedSlots = await Slot.find({
+        business: business._id,
+        date: dateStr,
+        isBooked: true,
+      });
+
       // Create fresh slots
       let dayCreated = 0;
       for (let t = start; t + interval <= end; t += interval) {
-        try {
-          await Slot.create({
-            business: business._id,
-            date: dateStr,
-            startTime: toTime(t),
-            endTime: toTime(t + interval),
-          });
-          dayCreated++;
-          totalCreated++;
-        } catch {
-          // skip duplicate
+        const slotStart = t;
+        const slotEnd = t + interval;
+
+        const overlapsBooked = bookedSlots.some((bs) => {
+          const bsStart = toMinutes(bs.startTime);
+          const bsEnd = toMinutes(bs.endTime);
+          return slotStart < bsEnd && slotEnd > bsStart;
+        });
+
+        if (!overlapsBooked) {
+          try {
+            await Slot.create({
+              business: business._id,
+              date: dateStr,
+              startTime: toTime(t),
+              endTime: toTime(t + interval),
+            });
+            dayCreated++;
+            totalCreated++;
+          } catch {
+            // skip duplicate
+          }
         }
       }
 

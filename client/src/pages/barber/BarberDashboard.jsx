@@ -177,7 +177,7 @@ export default function BarberDashboard() {
   const { mutateAsync: createSlotsMut } = useMutation({
     mutationFn: () => api.post('/slots/bulk', bulkSlot),
     onSuccess: ({ data }) => {
-      toast.success(`${data.message} (${data.count} slots created${data.skipped ? `, ${data.skipped} skipped (overlapping)` : ''})`)
+      toast.success(data.totalDeleted ? `Replaced ${data.totalDeleted} old slots · Created ${data.count} new slots` : `Created ${data.count} slots`)
       setSlotDate(bulkSlot.date)
       invalidateSlots()
     },
@@ -570,8 +570,11 @@ export default function BarberDashboard() {
                 <AnimatePresence>
                   {showDeleteDialog && (
                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setShowDeleteDialog(false)}>
-                      <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} onClick={e => e.stopPropagation()} className="mx-4 w-full max-w-md rounded-2xl border border-stone-200 bg-white p-6 shadow-2xl">
-                        <h3 className="font-display text-xl">Delete slots by range</h3>
+                      <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} onClick={e => e.stopPropagation()} className="relative mx-4 w-full max-w-md rounded-2xl border border-stone-200 bg-white p-6 shadow-2xl">
+                        <button type="button" onClick={() => setShowDeleteDialog(false)} className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-full text-stone-400 hover:bg-stone-100 hover:text-stone-600 transition">
+                          <X className="h-4 w-4" />
+                        </button>
+                        <h3 className="font-display text-xl pr-8">Delete slots by range</h3>
                         <p className="mt-1 text-sm text-stone-500">Removes all unbooked slots in the date range.</p>
                         <div className="mt-5 space-y-3">
                           <Input label="From" type="date" value={deleteRange.start} onChange={e => setDeleteRange({ ...deleteRange, start: e.target.value })} />
