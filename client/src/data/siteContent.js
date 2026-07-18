@@ -239,10 +239,10 @@ export const blogPosts = [
 ]
 
 export const aboutStats = [
-  { label: 'Roles supported', value: '3' },
-  { label: 'Core modules', value: '4' },
-  { label: 'Stack', value: 'MERN' },
-  { label: 'Booking', value: '24/7' },
+  { label: 'Top Barbers', value: '50+' },
+  { label: 'Happy Clients', value: '12k+' },
+  { label: 'Average Rating', value: '4.8/5' },
+  { label: 'Locations', value: '15+' },
 ]
 
 export const aboutValues = [

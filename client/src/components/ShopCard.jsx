@@ -4,7 +4,7 @@ import { MapPin, Clock, Sparkles, User, Crown } from 'lucide-react'
 import { formatPrice } from '../lib/utils'
 import { Badge } from './ui/Card'
 
-export default function ShopCard({ shop, index = 0 }) {
+export default function ShopCard({ shop, index = 0, hideMatch = false }) {
   const minPrice = shop.services?.length
     ? Math.min(...shop.services.map((s) => s.price))
     : null
@@ -55,7 +55,7 @@ export default function ShopCard({ shop, index = 0 }) {
               {shop.distanceKm} km
             </span>
           )}
-          {shop.relevance > 0 && (
+          {!hideMatch && shop.relevance > 0 && (
             <span className="absolute right-3 top-3 flex items-center gap-1 rounded-full bg-bronze/90 px-2.5 py-1 text-xs font-medium text-white">
               <Sparkles className="h-3 w-3" /> Match
             </span>

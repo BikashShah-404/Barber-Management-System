@@ -78,12 +78,6 @@ export default function Register() {
         >
           <div className="mb-8">
             <h1 className="font-display text-4xl text-ink">Sign up</h1>
-            <p className="mt-2 text-stone-500 text-sm">
-              Already have an account?{' '}
-              <Link to="/login" className="font-semibold text-emerald-500 hover:underline">
-                Sign in
-              </Link>
-            </p>
           </div>
 
           <form onSubmit={onSubmit} className="space-y-5">
@@ -155,6 +149,15 @@ export default function Register() {
             <Button type="submit" className="w-full h-12 text-base mt-2 bg-ink text-white hover:bg-stone-800 border-0 rounded-xl" loading={loading}>
               Sign Up
             </Button>
+
+            <div className="text-center mt-4">
+              <p className="text-stone-500 text-sm">
+                Already have an account?{' '}
+                <Link to="/login" className="font-semibold text-bronze hover:underline">
+                  Sign in
+                </Link>
+              </p>
+            </div>
           </form>
         </motion.div>
       </div>

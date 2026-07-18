@@ -103,7 +103,7 @@ const getAllBookings = async (_req, res) => {
     const bookings = await Booking.find()
       .populate('user', 'name email')
       .populate('business', 'name')
-      .populate('slot')
+      .populate('slots')
       .sort({ createdAt: -1 })
       .limit(100);
     res.json({ bookings });

@@ -4,10 +4,12 @@ const Business = require('../models/Business');
 
 const createBooking = async (req, res) => {
   try {
-    const { businessId, slotId, service, notes } = req.body;
+    const { businessId, slotIds, service, notes } = req.body;
 
-    if (!businessId || !slotId || !service?.name) {
-      return res.status(400).json({ message: 'Invalid booking details. Business, slot and service are required.' });
+    if (!businessId || !slotIds?.length || !service?.name) {
+      return res.status(400).json({
+        message: 'Invalid booking details. Business, slotIds (array) and service are required.',
+      });
     }
 
     const business = await Business.findById(businessId);
@@ -15,12 +17,42 @@ const createBooking = async (req, res) => {
       return res.status(400).json({ message: 'Business is not available for booking.' });
     }
 
-    const slot = await Slot.findById(slotId);
-    if (!slot || String(slot.business) !== String(businessId)) {
+    // Validate booking time window — at least 30 minutes in advance
+    const firstSlot = await Slot.findById(slotIds[0]);
+    if (!firstSlot) {
       return res.status(400).json({ message: 'Invalid time slot.' });
     }
-    if (slot.isBooked || !slot.isActive) {
-      return res.status(400).json({ message: 'This slot is no longer available.' });
+    const slotDateTime = new Date(`${firstSlot.date}T${firstSlot.startTime}:00`);
+    const now = new Date();
+    if (slotDateTime - now < 30 * 60 * 1000) {
+      return res.status(400).json({
+        message: 'Bookings must be at least 30 minutes in advance.',
+      });
+    }
+
+    // Atomically reserve all slots — check isBooked=false and isActive=true
+    const slotsToBook = await Slot.find({
+      _id: { $in: slotIds },
+      business: businessId,
+      isBooked: false,
+      isActive: true,
+    });
+
+    if (slotsToBook.length !== slotIds.length) {
+      return res.status(400).json({
+        message: 'One or more selected slots are no longer available.',
+      });
+    }
+
+    // Verify slots are contiguous and on the same date
+    const sorted = slotsToBook.sort((a, b) => a.startTime.localeCompare(b.startTime));
+    for (let i = 1; i < sorted.length; i++) {
+      if (sorted[i].date !== sorted[i - 1].date) {
+        return res.status(400).json({ message: 'Slots must be on the same date.' });
+      }
+      if (sorted[i].startTime !== sorted[i - 1].endTime) {
+        return res.status(400).json({ message: 'Slots must be consecutive with no gaps.' });
+      }
     }
 
     // Match service from business catalog when possible
@@ -33,21 +65,35 @@ const createBooking = async (req, res) => {
       duration: matched?.duration ?? Number(service.duration) ?? 30,
     };
 
+    // Atomic reservation — updateMany with conditions
+    const updateResult = await Slot.updateMany(
+      { _id: { $in: slotIds }, isBooked: false, isActive: true },
+      { $set: { isBooked: true } }
+    );
+
+    if (updateResult.modifiedCount !== slotIds.length) {
+      // Rollback — free any slots we did manage to reserve
+      await Slot.updateMany(
+        { _id: { $in: slotIds }, isBooked: true },
+        { $set: { isBooked: false } }
+      );
+      return res.status(400).json({
+        message: 'One or more slots were just booked by someone else. Please try again.',
+      });
+    }
+
     const booking = await Booking.create({
       user: req.user._id,
       business: businessId,
-      slot: slotId,
+      slots: slotIds,
       service: serviceData,
       notes: notes || '',
       status: 'pending',
     });
 
-    slot.isBooked = true;
-    await slot.save();
-
     const populated = await Booking.findById(booking._id)
       .populate('business', 'name address city phone')
-      .populate('slot')
+      .populate('slots')
       .populate('user', 'name email phone');
 
     res.status(201).json({
@@ -63,7 +109,7 @@ const getMyBookings = async (req, res) => {
   try {
     const bookings = await Booking.find({ user: req.user._id })
       .populate('business', 'name address city phone coverImage images')
-      .populate('slot')
+      .populate('slots')
       .sort({ createdAt: -1 });
     res.json({ bookings });
   } catch (err) {
@@ -84,11 +130,11 @@ const cancelBooking = async (req, res) => {
     booking.status = 'cancelled';
     await booking.save();
 
-    const slot = await Slot.findById(booking.slot);
-    if (slot) {
-      slot.isBooked = false;
-      await slot.save();
-    }
+    // Free all reserved slots
+    await Slot.updateMany(
+      { _id: { $in: booking.slots } },
+      { $set: { isBooked: false } }
+    );
 
     res.json({ message: 'Booking canceled successfully', booking });
   } catch (err) {
@@ -106,7 +152,7 @@ const getOwnerBookings = async (req, res) => {
 
     const bookings = await Booking.find(filter)
       .populate('user', 'name email phone')
-      .populate('slot')
+      .populate('slots')
       .sort({ createdAt: -1 });
 
     res.json({ bookings });
@@ -127,29 +173,33 @@ const respondToBooking = async (req, res) => {
 
     const booking = await Booking.findOne({ _id: req.params.id, business: business._id })
       .populate('user', 'name email phone')
-      .populate('slot');
+      .populate('slots');
 
     if (!booking) {
       return res.status(404).json({ message: 'Booking not found' });
     }
 
+    // State machine guards
     if (status === 'accepted' && booking.status !== 'pending') {
       return res.status(400).json({ message: 'Only pending bookings can be accepted.' });
     }
     if (status === 'rejected' && booking.status !== 'pending') {
       return res.status(400).json({ message: 'Only pending bookings can be rejected.' });
     }
+    if (status === 'completed' && booking.status !== 'accepted') {
+      return res.status(400).json({ message: 'Only accepted bookings can be marked completed.' });
+    }
 
     booking.status = status;
     if (ownerNote !== undefined) booking.ownerNote = ownerNote;
     await booking.save();
 
+    // Free all slots on rejection
     if (status === 'rejected') {
-      const slot = await Slot.findById(booking.slot._id || booking.slot);
-      if (slot) {
-        slot.isBooked = false;
-        await slot.save();
-      }
+      await Slot.updateMany(
+        { _id: { $in: booking.slots.map((s) => s._id || s) } },
+        { $set: { isBooked: false } }
+      );
     }
 
     const msg =

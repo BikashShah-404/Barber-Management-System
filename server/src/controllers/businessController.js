@@ -189,7 +189,7 @@ const getApprovedBusinesses = async (req, res) => {
     if (q) {
       const docs = businesses.map(
         (b) =>
-          `${b.name} ${b.description} ${b.city} ${b.address} ${b.services.map((s) => s.name).join(' ')} ${b.facilities.join(' ')}`
+          `${b.name} ${b.description} ${b.city} ${b.address} ${b.owner?.name || ''} ${b.services.map((s) => s.name).join(' ')} ${b.facilities.join(' ')}`
       );
       const ranked = rankByCosine(q, docs);
       businesses = ranked
@@ -197,7 +197,7 @@ const getApprovedBusinesses = async (req, res) => {
         .map((r) => ({ ...businesses[r.index], relevance: r.score }))
         .filter((b) => {
           if (!q.trim()) return true;
-          const hay = `${b.name} ${b.description} ${b.city} ${b.address}`.toLowerCase();
+          const hay = `${b.name} ${b.description} ${b.city} ${b.address} ${b.owner?.name || ''}`.toLowerCase();
           return b.relevance > 0 || hay.includes(q.toLowerCase());
         });
     }

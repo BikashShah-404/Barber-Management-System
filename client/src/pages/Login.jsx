@@ -56,12 +56,6 @@ export default function Login() {
         >
           <div className="mb-8">
             <h1 className="font-display text-4xl text-ink">Sign In</h1>
-            <p className="mt-2 text-stone-500 text-sm">
-              Don't have an account yet?{' '}
-              <Link to="/register" className="font-semibold text-emerald-500 hover:underline">
-                Sign Up
-              </Link>
-            </p>
           </div>
 
           <form onSubmit={onSubmit} className="space-y-5">
@@ -82,7 +76,7 @@ export default function Login() {
               placeholder="••••••••"
             />
 
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between mb-2">
               <label className="flex items-center gap-2 text-sm text-stone-600">
                 <input type="checkbox" className="h-4 w-4 rounded border-stone-300 text-ink focus:ring-ink" />
                 Remember me
@@ -99,6 +93,15 @@ export default function Login() {
             >
               Sign In
             </Button>
+
+            <div className="text-center mt-4">
+              <p className="text-stone-500 text-sm">
+                Don't have an account yet?{' '}
+                <Link to="/register" className="font-semibold text-bronze hover:underline">
+                  Sign Up
+                </Link>
+              </p>
+            </div>
           </form>
 
           <div className="mt-10 rounded-2xl border border-dashed border-stone-300 bg-stone-50 p-4 text-xs text-stone-500">

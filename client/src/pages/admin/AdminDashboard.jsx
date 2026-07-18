@@ -1,6 +1,19 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Cell,
+  PieChart,
+  Pie,
+  Legend
+} from 'recharts'
+import {
   LayoutDashboard,
   Users,
   Store,
@@ -8,6 +21,7 @@ import {
   X,
   Power,
   Calendar,
+  ChevronDown,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import api from '../../lib/api'
@@ -30,7 +44,12 @@ export default function AdminDashboard() {
   const [users, setUsers] = useState([])
   const [bookings, setBookings] = useState([])
   const [filter, setFilter] = useState('pending')
+  const [filterOpen, setFilterOpen] = useState(false)
   const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'instant' })
+  }, [tab])
 
   const loadStats = async () => {
     const { data } = await api.get('/admin/dashboard')
@@ -102,114 +121,283 @@ export default function AdminDashboard() {
   if (loading) return <PageLoader />
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-        <p className="text-sm text-stone-500">Administration</p>
-        <h1 className="font-display text-4xl">Admin panel</h1>
+    <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 min-h-screen">
+      {/* Header */}
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
+        <p className="text-sm text-stone-500 uppercase tracking-widest font-semibold mb-1">Administration</p>
+        <h1 className="font-display text-3xl">Admin panel</h1>
       </motion.div>
 
-      <div className="mt-8 flex gap-1 overflow-x-auto rounded-2xl border border-stone-200 bg-white p-1.5 shadow-sm">
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
-            className={cn(
-              'flex shrink-0 items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-medium transition',
-              tab === t.id ? 'bg-ink text-cream' : 'text-stone-600 hover:bg-cream'
-            )}
-          >
-            <t.icon className="h-4 w-4" />
-            {t.label}
-          </button>
-        ))}
+      <div className="flex flex-col md:flex-row gap-8 items-start">
+        {/* Sidebar */}
+        <div className="w-full md:w-64 shrink-0 md:sticky md:top-24">
+          <div className="flex flex-col gap-2 rounded-2xl border border-stone-200 bg-white p-3 shadow-sm">
+          {TABS.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              className={cn(
+                'flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition w-full text-left',
+                tab === t.id ? 'bg-ink text-cream shadow-md' : 'text-stone-600 hover:bg-stone-100 hover:text-ink'
+              )}
+            >
+              <t.icon className="h-5 w-5" />
+              {t.label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      <div className="mt-8">
+      {/* Main Content */}
+      <div className="flex-1 w-full min-w-0">
         {tab === 'overview' && stats && (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {[
-              { label: 'Customers', value: stats.users, color: 'from-zinc-50 to-white' },
-              { label: 'Barbers', value: stats.barbers, color: 'from-zinc-50 to-white' },
-              { label: 'Total shops', value: stats.businesses, color: 'from-stone-50 to-white' },
-              { label: 'Pending approval', value: stats.pendingBusinesses, color: 'from-zinc-50 to-white' },
-              { label: 'Approved shops', value: stats.approvedBusinesses, color: 'from-emerald-50 to-white' },
-              { label: 'Bookings', value: stats.bookings, color: 'from-sky-50 to-white' },
-            ].map((s, i) => (
-              <motion.div
-                key={s.label}
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.05 }}
-              >
-                <Card className={`bg-gradient-to-br ${s.color}`}>
-                  <p className="text-sm text-stone-500">{s.label}</p>
-                  <p className="mt-2 font-display text-4xl text-ink">{s.value}</p>
+          <div className="space-y-8">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {[
+                { label: 'Customers', value: stats.users, color: 'from-zinc-50 to-white' },
+                { label: 'Barbers', value: stats.barbers, color: 'from-zinc-50 to-white' },
+                { label: 'Total shops', value: stats.businesses, color: 'from-stone-50 to-white' },
+                { label: 'Pending approval', value: stats.pendingBusinesses, color: 'from-zinc-50 to-white' },
+                { label: 'Approved shops', value: stats.approvedBusinesses, color: 'from-emerald-50 to-white' },
+                { label: 'Bookings', value: stats.bookings, color: 'from-sky-50 to-white' },
+              ].map((s) => (
+                <Card key={s.label} className={cn('bg-gradient-to-br', s.color)}>
+                  <p className="text-sm font-medium text-stone-500">{s.label}</p>
+                  <p className="mt-2 font-display text-4xl">{s.value}</p>
                 </Card>
-              </motion.div>
-            ))}
+              ))}
+            </div>
+
+            <div className="grid gap-6 lg:grid-cols-2">
+              <Card className="pt-6">
+                <h3 className="mb-6 px-2 font-display text-xl text-ink">Platform Metrics</h3>
+                <div className="h-[300px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={[
+                        { name: 'Customers', value: stats.users },
+                        { name: 'Barbers', value: stats.barbers },
+                        { name: 'Shops', value: stats.businesses },
+                        { name: 'Bookings', value: stats.bookings },
+                      ]}
+                      margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e7e5e4" />
+                      <XAxis 
+                        dataKey="name" 
+                        axisLine={false}
+                        tickLine={false}
+                        tick={{ fill: '#78716c', fontSize: 12 }}
+                        dy={10}
+                      />
+                      <YAxis 
+                        axisLine={false}
+                        tickLine={false}
+                        tick={{ fill: '#78716c', fontSize: 12 }}
+                      />
+                      <Tooltip 
+                        cursor={{ fill: '#f5f5f4' }}
+                        contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                      />
+                      <Bar dataKey="value" fill="#706f70" radius={[6, 6, 0, 0]} barSize={40}>
+                        {
+                          [
+                            { name: 'Customers', value: stats.users },
+                            { name: 'Barbers', value: stats.barbers },
+                            { name: 'Shops', value: stats.businesses },
+                            { name: 'Bookings', value: stats.bookings },
+                          ].map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill="#706f70" />
+                          ))
+                        }
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </Card>
+
+              <Card className="pt-6">
+                <h3 className="mb-6 px-2 font-display text-xl text-ink">Shop Status Distribution</h3>
+                <div className="h-[300px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={[
+                          { name: 'Approved', value: stats.approvedBusinesses, color: '#706f70' },
+                          { name: 'Pending', value: stats.pendingBusinesses, color: '#acadb1' },
+                          { name: 'Rejected', value: Math.max(0, stats.businesses - stats.approvedBusinesses - stats.pendingBusinesses), color: '#e7e5e4' }
+                        ].filter(d => d.value > 0)}
+                        cx="50%"
+                        cy="45%"
+                        innerRadius={60}
+                        outerRadius={90}
+                        paddingAngle={5}
+                        dataKey="value"
+                      >
+                        {
+                          [
+                            { name: 'Approved', value: stats.approvedBusinesses, color: '#706f70' },
+                            { name: 'Pending', value: stats.pendingBusinesses, color: '#acadb1' },
+                            { name: 'Rejected', value: Math.max(0, stats.businesses - stats.approvedBusinesses - stats.pendingBusinesses), color: '#e7e5e4' }
+                          ].filter(d => d.value > 0).map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))
+                        }
+                      </Pie>
+                      <Tooltip 
+                        contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                      />
+                      <Legend 
+                        verticalAlign="bottom" 
+                        height={36}
+                        iconType="circle"
+                        formatter={(value) => <span className="text-sm text-stone-600">{value}</span>}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </Card>
+
+              <Card className="pt-6 lg:col-span-2">
+                <h3 className="mb-6 px-2 font-display text-xl text-ink">User Demographics</h3>
+                <div className="h-[250px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={[
+                          { name: 'Customers', value: stats.users, color: '#1c1917' },
+                          { name: 'Barber Owners', value: stats.barbers, color: '#706f70' },
+                        ].filter(d => d.value > 0)}
+                        cx="50%"
+                        cy="50%"
+                        outerRadius={80}
+                        dataKey="value"
+                        label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                        labelLine={false}
+                      >
+                        {
+                          [
+                            { name: 'Customers', value: stats.users, color: '#1c1917' },
+                            { name: 'Barber Owners', value: stats.barbers, color: '#706f70' },
+                          ].filter(d => d.value > 0).map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))
+                        }
+                      </Pie>
+                      <Tooltip 
+                        contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </Card>
+            </div>
           </div>
         )}
 
         {tab === 'businesses' && (
           <div>
-            <div className="mb-4 flex flex-wrap gap-2">
-              {['pending', 'approved', 'rejected', 'all'].map((f) => (
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="font-display text-2xl text-ink">Shops List</h2>
+              
+              <div className="relative">
                 <button
-                  key={f}
-                  onClick={() => setFilter(f)}
-                  className={cn(
-                    'rounded-full px-3 py-1.5 text-xs font-medium capitalize',
-                    filter === f ? 'bg-ink text-cream' : 'bg-white border border-stone-200 text-stone-600'
-                  )}
+                  onClick={() => setFilterOpen(!filterOpen)}
+                  className="flex items-center justify-between w-36 rounded-xl border border-stone-200 bg-white px-4 py-2 text-sm text-stone-600 hover:border-stone-300 focus:border-bronze focus:outline-none focus:ring-1 focus:ring-bronze transition-all capitalize shadow-sm"
                 >
-                  {f}
+                  {filter}
+                  <ChevronDown className={cn("h-4 w-4 text-stone-400 transition-transform", filterOpen && "rotate-180")} />
                 </button>
-              ))}
+
+                {filterOpen && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setFilterOpen(false)}></div>
+                    <motion.div 
+                      initial={{ opacity: 0, y: -5 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="absolute right-0 top-full z-20 mt-1.5 w-36 overflow-hidden rounded-xl border border-stone-200 bg-white shadow-xl"
+                    >
+                      {['pending', 'approved', 'rejected', 'all'].map((f) => (
+                        <button
+                          key={f}
+                          onClick={() => {
+                            setFilter(f)
+                            setFilterOpen(false)
+                          }}
+                          className={cn(
+                            "w-full px-4 py-2.5 text-left text-sm capitalize transition-colors hover:bg-stone-50",
+                            filter === f ? "bg-cream text-ink font-medium" : "text-stone-600"
+                          )}
+                        >
+                          {f}
+                        </button>
+                      ))}
+                    </motion.div>
+                  </>
+                )}
+              </div>
             </div>
-            <div className="space-y-4">
-              {businesses.map((b) => (
-                <Card key={b._id} className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="font-display text-xl">{b.name}</h3>
-                      <Badge className={statusColor(b.status)}>{b.status}</Badge>
-                    </div>
-                    <p className="mt-1 text-sm text-stone-600">
-                      {b.address}
-                      {b.city ? `, ${b.city}` : ''}
-                    </p>
-                    <p className="text-xs text-stone-400">
-                      Owner: {b.owner?.name} · {b.owner?.email}
-                    </p>
-                    <p className="text-xs text-stone-400">
-                      Services: {b.services?.map((s) => s.name).join(', ') || '—'}
-                    </p>
-                  </div>
-                  {b.status === 'pending' && (
-                    <div className="flex gap-2">
-                      <Button size="sm" variant="bronze" onClick={() => review(b._id, 'approved')}>
-                        <Check className="h-4 w-4" /> Approve
-                      </Button>
-                      <Button size="sm" variant="outline" onClick={() => review(b._id, 'rejected')}>
-                        <X className="h-4 w-4" /> Reject
-                      </Button>
-                    </div>
+            
+            <div className="overflow-x-auto overflow-y-hidden rounded-3xl border border-stone-200 bg-white shadow-sm">
+              <table className="w-full min-w-[600px] text-left text-sm">
+                <thead className="border-b border-stone-100 bg-cream/80 text-stone-500">
+                  <tr>
+                    <th className="px-4 py-3 font-medium">Shop Name</th>
+                    <th className="px-4 py-3 font-medium">Owner</th>
+                    <th className="px-4 py-3 font-medium">Location</th>
+                    <th className="px-4 py-3 font-medium">Status</th>
+                    <th className="px-4 py-3 font-medium">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {businesses.map((b) => (
+                    <tr key={b._id} className="border-b border-stone-50 last:border-0">
+                      <td className="px-4 py-3 font-medium text-ink">{b.name}</td>
+                      <td className="px-4 py-3 text-stone-600">
+                        {b.owner?.name} <br />
+                        <span className="text-xs text-stone-400">{b.owner?.email}</span>
+                      </td>
+                      <td className="px-4 py-3 text-stone-600">
+                        {b.city || '—'}
+                      </td>
+                      <td className="px-4 py-3">
+                        <Badge className={statusColor(b.status)}>{b.status}</Badge>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex gap-2">
+                          {b.status === 'pending' && (
+                            <>
+                              <Button size="sm" variant="bronze" onClick={() => review(b._id, 'approved')} className="h-8 px-3">
+                                <Check className="mr-1 h-3 w-3" /> Approve
+                              </Button>
+                              <Button size="sm" variant="outline" onClick={() => review(b._id, 'rejected')} className="h-8 px-3">
+                                <X className="mr-1 h-3 w-3" /> Reject
+                              </Button>
+                            </>
+                          )}
+                          {b.status === 'approved' && (
+                            <Button size="sm" variant="outline" onClick={() => review(b._id, 'rejected')} className="h-8 px-3">
+                              Revoke
+                            </Button>
+                          )}
+                          {b.status === 'rejected' && (
+                            <Button size="sm" variant="bronze" onClick={() => review(b._id, 'approved')} className="h-8 px-3">
+                              Approve
+                            </Button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {!businesses.length && (
+                    <tr>
+                      <td colSpan="5" className="py-12 text-center text-stone-500">
+                        No shops in this filter.
+                      </td>
+                    </tr>
                   )}
-                  {b.status === 'approved' && (
-                    <Button size="sm" variant="outline" onClick={() => review(b._id, 'rejected')}>
-                      Revoke
-                    </Button>
-                  )}
-                  {b.status === 'rejected' && (
-                    <Button size="sm" variant="bronze" onClick={() => review(b._id, 'approved')}>
-                      Approve
-                    </Button>
-                  )}
-                </Card>
-              ))}
-              {!businesses.length && (
-                <p className="py-12 text-center text-stone-500">No shops in this filter.</p>
-              )}
+                </tbody>
+              </table>
             </div>
           </div>
         )}
@@ -267,8 +455,8 @@ export default function AdminDashboard() {
                     {b.user?.name} → {b.business?.name}
                   </p>
                   <p className="text-sm text-stone-500">
-                    {b.service?.name} · {formatPrice(b.service?.price)} · {b.slot?.date}{' '}
-                    {b.slot?.startTime}
+                    {b.service?.name} · {formatPrice(b.service?.price)} · {b.slots?.[0]?.date}{' '}
+                    {b.slots?.[0]?.startTime}
                   </p>
                 </div>
                 <Badge className={statusColor(b.status)}>{b.status}</Badge>
@@ -279,6 +467,7 @@ export default function AdminDashboard() {
             )}
           </div>
         )}
+      </div>
       </div>
     </div>
   )

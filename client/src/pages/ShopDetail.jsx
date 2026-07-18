@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { MapPin, Phone, Check, User, Info } from 'lucide-react'
+import { MapPin, Phone, Check, User, Clock } from 'lucide-react'
 import { toast } from 'sonner'
 import api from '../lib/api'
 import { useAuth } from '../context/AuthContext'
@@ -16,13 +16,16 @@ export default function ShopDetail() {
   const { user, isAuth } = useAuth()
   const navigate = useNavigate()
   const [shop, setShop] = useState(null)
-  const [slots, setSlots] = useState([])
+  const [windows, setWindows] = useState([])
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10))
   const [selectedService, setSelectedService] = useState('')
-  const [selectedSlot, setSelectedSlot] = useState('')
+  const [selectedWindow, setSelectedWindow] = useState(null)
   const [notes, setNotes] = useState('')
   const [loading, setLoading] = useState(true)
   const [booking, setBooking] = useState(false)
+
+  const selectedSvc = shop?.services?.find((s) => s.name === selectedService)
+  const serviceDuration = selectedSvc?.duration || 30
 
   useEffect(() => {
     const load = async () => {
@@ -45,13 +48,13 @@ export default function ShopDetail() {
   useEffect(() => {
     if (!id || !date) return
     api
-      .get(`/slots/business/${id}`, { params: { date } })
-      .then((res) => setSlots(res.data.slots))
-      .catch(() => setSlots([]))
-    setSelectedSlot('')
-  }, [id, date])
-
-  const usingDefaults = slots.length === 0 && selectedSlot?.startsWith('default-')
+      .get('/slots/windows', {
+        params: { businessId: id, date, duration: serviceDuration },
+      })
+      .then((res) => setWindows(res.data.windows))
+      .catch(() => setWindows([]))
+    setSelectedWindow(null)
+  }, [id, date, serviceDuration])
 
   const book = async () => {
     if (!isAuth) {
@@ -63,12 +66,8 @@ export default function ShopDetail() {
       toast.error('Only customer accounts can book appointments')
       return
     }
-    if (!selectedService || !selectedSlot) {
+    if (!selectedService || !selectedWindow) {
       toast.error('Select a service and time slot')
-      return
-    }
-    if (usingDefaults) {
-      toast.message(`Contact ${shop.phone || 'the shop'} to confirm ${selectedSlot.replace('default-', '').replace('-', ':')} availability`)
       return
     }
     const svc = shop.services.find((s) => s.name === selectedService)
@@ -76,7 +75,7 @@ export default function ShopDetail() {
     try {
       const { data } = await api.post('/bookings', {
         businessId: id,
-        slotId: selectedSlot,
+        slotIds: selectedWindow.slotIds,
         service: {
           name: svc.name,
           price: svc.price,
@@ -252,7 +251,7 @@ export default function ShopDetail() {
               >
                 {shop.services?.map((s) => (
                   <option key={s._id || s.name} value={s.name}>
-                    {s.name} — {formatPrice(s.price)}
+                    {s.name} — {formatPrice(s.price)} · {s.duration} min
                   </option>
                 ))}
               </Select>
@@ -269,55 +268,36 @@ export default function ShopDetail() {
               </label>
 
               <div>
-                <p className="mb-2 text-sm font-medium text-stone-700">Available slots</p>
-                {slots.length > 0 ? (
-                  <div className="grid grid-cols-3 gap-2">
-                    {slots.map((slot) => (
+                <p className="mb-2 text-sm font-medium text-stone-700">
+                  Available {serviceDuration}-min slots
+                </p>
+                {windows.length > 0 ? (
+                  <div className="grid grid-cols-2 gap-2">
+                    {windows.map((w) => (
                       <button
-                        key={slot._id}
+                        key={w.slotIds.join('-')}
                         type="button"
-                        onClick={() => setSelectedSlot(slot._id)}
+                        onClick={() => setSelectedWindow(w)}
                         className={cn(
-                          'rounded-xl border px-2 py-2 text-xs font-medium transition',
-                          selectedSlot === slot._id
+                          'rounded-xl border px-3 py-2.5 text-xs font-medium transition',
+                          selectedWindow === w
                             ? 'border-bronze bg-bronze text-white'
                             : 'border-stone-200 bg-cream hover:border-bronze/40'
                         )}
                       >
-                        {slot.startTime}
+                        <span className="flex items-center gap-1">
+                          <Clock className="h-3 w-3" />
+                          {w.startTime} – {w.endTime}
+                        </span>
                       </button>
                     ))}
                   </div>
                 ) : (
-                  <>
-                    <div className="mb-2 flex items-start gap-1.5 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-700">
-                      <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                      <span>Default times shown — confirm availability with the shop owner.</span>
-                    </div>
-                    <div className="grid grid-cols-3 gap-2">
-                      {[10,10.5,11,11.5,12,12.5,13,13.5,14,14.5,15,15.5,16,16.5].map((t) => {
-                        const h = Math.floor(t)
-                        const m = (t % 1) * 60
-                        const start = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`
-                        const fakeId = `default-${start}`
-                        return (
-                          <button
-                            key={fakeId}
-                            type="button"
-                            onClick={() => setSelectedSlot(fakeId)}
-                            className={cn(
-                              'rounded-xl border px-2 py-2 text-xs font-medium transition',
-                              selectedSlot === fakeId
-                                ? 'border-bronze bg-bronze text-white'
-                                : 'border-stone-200 bg-cream hover:border-bronze/40'
-                            )}
-                          >
-                            {start}
-                          </button>
-                        )
-                      })}
-                    </div>
-                  </>
+                  <div className="rounded-xl border border-stone-100 bg-cream/50 px-4 py-6 text-center text-sm text-stone-500">
+                    No {serviceDuration}-min slots available for this date.
+                    <br />
+                    <span className="text-xs text-stone-400">Try another date or contact the shop.</span>
+                  </div>
                 )}
               </div>
 
@@ -335,7 +315,7 @@ export default function ShopDetail() {
                 onClick={book}
                 disabled={!shop.services?.length}
               >
-                {usingDefaults ? 'Contact to confirm booking' : 'Submit booking request'}
+                Submit booking request
               </Button>
             </div>
           </Card>

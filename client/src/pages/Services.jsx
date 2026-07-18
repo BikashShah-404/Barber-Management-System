@@ -280,11 +280,6 @@ export default function Services() {
             let t = bento.type
             let bentoSpan = bento.span
             
-            if (i === filtered.length - 1) {
-              bentoSpan = 'md:col-span-3 md:row-span-1 row-span-1'
-              t = 'wide'
-            }
-            
             const isLarge = t === 'large'
             const isWide = t === 'wide'
             const isTall = t === 'tall'

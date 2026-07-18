@@ -24,6 +24,10 @@ export default function UserDashboard() {
   })
   const [saving, setSaving] = useState(false)
 
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'instant' })
+  }, [tab])
+
   const loadBookings = async () => {
     setLoading(true)
     try {
@@ -71,28 +75,34 @@ export default function UserDashboard() {
   ]
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-12 sm:px-6">
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-        <p className="text-sm text-stone-500">Customer dashboard</p>
-        <h1 className="font-display text-4xl">Hello, {user?.name?.split(' ')[0]}</h1>
+    <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 min-h-screen">
+      {/* Header */}
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
+        <p className="text-sm text-stone-500 uppercase tracking-widest font-semibold mb-1">Customer</p>
+        <h1 className="font-display text-3xl">Hello, {user?.name?.split(' ')[0]}</h1>
       </motion.div>
 
-      <div className="mt-8 flex gap-2 rounded-2xl border border-stone-200 bg-white p-1.5 shadow-sm">
-        {tabs.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
-            className={`flex flex-1 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition ${
-              tab === t.id ? 'bg-ink text-cream' : 'text-stone-600 hover:bg-cream'
-            }`}
-          >
-            <t.icon className="h-4 w-4" />
-            {t.label}
-          </button>
-        ))}
+      <div className="flex flex-col md:flex-row gap-8 items-start">
+        {/* Sidebar */}
+        <div className="w-full md:w-64 shrink-0 md:sticky md:top-24">
+          <div className="flex flex-col gap-2 rounded-2xl border border-stone-200 bg-white p-3 shadow-sm">
+          {tabs.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              className={`flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition text-left ${
+                tab === t.id ? 'bg-ink text-cream shadow-md' : 'text-stone-600 hover:bg-stone-100 hover:text-ink'
+              }`}
+            >
+              <t.icon className="h-5 w-5" />
+              {t.label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      <div className="mt-8">
+      {/* Main Content */}
+      <div className="flex-1 w-full min-w-0">
         {tab === 'bookings' && (
           <>
             <div className="mb-4 flex justify-end">
@@ -123,7 +133,8 @@ export default function UserDashboard() {
                           {b.service?.name} · {formatPrice(b.service?.price)} · {b.service?.duration} min
                         </p>
                         <p className="text-sm text-stone-500">
-                          {b.slot?.date} · {b.slot?.startTime} – {b.slot?.endTime}
+                          {b.slots?.[0]?.date} · {b.slots?.[0]?.startTime} –{' '}
+                          {b.slots?.[b.slots.length - 1]?.endTime}
                         </p>
                         {b.notes && <p className="mt-1 text-xs text-stone-400">Note: {b.notes}</p>}
                       </div>
@@ -178,6 +189,7 @@ export default function UserDashboard() {
             </form>
           </Card>
         )}
+      </div>
       </div>
     </div>
   )

@@ -117,7 +117,7 @@ export default function Shops() {
         <p className="shop-eyebrow text-sm font-medium uppercase tracking-widest text-bronze">Directory</p>
         <h1 className="shop-title mt-2 font-display text-4xl text-ink sm:text-5xl">Find a barbershop</h1>
         <p className="shop-sub mt-2 max-w-lg text-stone-500">
-          Search by name, services, or city. Results use text matching with relevance ranking.
+          Search by name, owner, services, or city. Results use text matching with relevance ranking.
         </p>
       </div>
 
@@ -132,7 +132,7 @@ export default function Shops() {
             className="pl-10"
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Haircut, fade, shop name…"
+            placeholder="Haircut, fade, shop or owner name…"
           />
         </div>
         <Input
@@ -185,7 +185,7 @@ export default function Shops() {
             </div>
             <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
               {renderedShops.map((s, i) => (
-                <ShopCard key={s._id} shop={s} index={i} />
+                <ShopCard key={s._id} shop={s} index={i} hideMatch={!!(q || service || city || params.get('lat'))} />
               ))}
             </div>
           </>

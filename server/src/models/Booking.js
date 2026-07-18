@@ -12,11 +12,13 @@ const bookingSchema = new mongoose.Schema(
       ref: 'Business',
       required: true,
     },
-    slot: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Slot',
-      required: true,
-    },
+    slots: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Slot',
+        required: true,
+      },
+    ],
     service: {
       name: { type: String, required: true },
       price: { type: Number, required: true },
