@@ -77,10 +77,16 @@ export default function Navbar() {
             <div className="relative">
               <button
                 type="button"
-                className="flex items-center gap-2 rounded-full border border-stone-200 bg-white px-3 py-1.5 text-sm hover:border-stone-300 transition-colors"
+                className="flex items-center gap-2.5 rounded-full border border-stone-200 bg-white pl-1.5 pr-3 py-1.5 text-sm hover:border-stone-300 transition-colors"
                 onClick={() => setProfileOpen((v) => !v)}
               >
-                <User className="h-3.5 w-3.5 text-stone-400" />
+                {user.avatar ? (
+                  <img src={user.avatar} alt="Profile" className="h-8 w-8 rounded-full object-cover border border-stone-200" />
+                ) : (
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-stone-100 border border-stone-200">
+                    <User className="h-4 w-4 text-stone-500" />
+                  </div>
+                )}
                 <span className="max-w-28 truncate font-medium text-stone-700">{user.name}</span>
                 <ChevronDown className={cn('h-3.5 w-3.5 text-stone-400 transition', profileOpen && 'rotate-180')} />
               </button>

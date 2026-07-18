@@ -150,7 +150,7 @@ const createRecurringSlots = async (req, res) => {
     }
 
     let totalCreated = 0;
-    let totalSkipped = 0;
+    let totalDeleted = 0;
     const createdDates = [];
 
     for (let d = new Date(sDate); d <= eDate; d.setDate(d.getDate() + 1)) {
@@ -158,42 +158,30 @@ const createRecurringSlots = async (req, res) => {
 
       const dateStr = d.toISOString().slice(0, 10);
 
-      // Check existing slots for this date
-      const existingSlots = await Slot.find({
+      // Delete all existing unbooked slots in the target time range for this date
+      const deleteResult = await Slot.deleteMany({
         business: business._id,
         date: dateStr,
-        isActive: true,
+        isBooked: false,
+        startTime: { $lt: endTime },
+        endTime: { $gt: startTime },
       });
+      totalDeleted += deleteResult.deletedCount || 0;
 
-      const slotsForDay = [];
+      // Create fresh slots
+      let dayCreated = 0;
       for (let t = start; t + interval <= end; t += interval) {
-        const slotStart = toTime(t);
-        const slotEnd = toTime(t + interval);
-
-        const overlaps = existingSlots.some((existing) => {
-          const exStart = toMinutes(existing.startTime);
-          const exEnd = toMinutes(existing.endTime);
-          return t < exEnd && t + interval > exStart;
-        });
-
-        if (!overlaps) {
-          slotsForDay.push({
+        try {
+          await Slot.create({
             business: business._id,
             date: dateStr,
-            startTime: slotStart,
-            endTime: slotEnd,
+            startTime: toTime(t),
+            endTime: toTime(t + interval),
           });
-        }
-      }
-
-      let dayCreated = 0;
-      for (const s of slotsForDay) {
-        try {
-          await Slot.create(s);
           dayCreated++;
           totalCreated++;
         } catch {
-          totalSkipped++;
+          // skip duplicate
         }
       }
 
@@ -205,6 +193,7 @@ const createRecurringSlots = async (req, res) => {
     res.status(201).json({
       message: 'Recurring slots created successfully',
       totalCreated,
+      totalDeleted,
       dates: createdDates,
     });
   } catch (err) {
@@ -374,6 +363,105 @@ const cleanupPastSlots = async (req, res) => {
   }
 };
 
+const deleteSlotsByDate = async (req, res) => {
+  try {
+    const business = await ensureOwnerBusiness(req.user._id);
+    if (!business) return res.status(404).json({ message: 'Business not found' });
+
+    const { date } = req.params;
+    const result = await Slot.deleteMany({
+      business: business._id,
+      date,
+      isBooked: false,
+    });
+
+    res.json({
+      message: `Deleted ${result.deletedCount} slots for ${date}`,
+      deleted: result.deletedCount,
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+const deleteSlotsByRange = async (req, res) => {
+  try {
+    const business = await ensureOwnerBusiness(req.user._id);
+    if (!business) return res.status(404).json({ message: 'Business not found' });
+
+    const { startDate, endDate, startTime, endTime } = req.body;
+    if (!startDate || !endDate) {
+      return res.status(400).json({ message: 'startDate and endDate are required.' });
+    }
+
+    const filter = {
+      business: business._id,
+      date: { $gte: startDate, $lte: endDate },
+      isBooked: false,
+    };
+    if (startTime) filter.startTime = { $gte: startTime };
+    if (endTime) filter.endTime = { $lte: endTime };
+
+    const result = await Slot.deleteMany(filter);
+    res.json({
+      message: `Deleted ${result.deletedCount} slots`,
+      deleted: result.deletedCount,
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+const deleteAllSlots = async (req, res) => {
+  try {
+    const business = await ensureOwnerBusiness(req.user._id);
+    if (!business) return res.status(404).json({ message: 'Business not found' });
+
+    const result = await Slot.deleteMany({
+      business: business._id,
+      isBooked: false,
+    });
+
+    res.json({
+      message: `Deleted all ${result.deletedCount} unbooked slots`,
+      deleted: result.deletedCount,
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+const getSlotStats = async (req, res) => {
+  try {
+    const business = await ensureOwnerBusiness(req.user._id);
+    if (!business) return res.status(404).json({ message: 'Business not found' });
+
+    const total = await Slot.countDocuments({ business: business._id });
+    const totalUnbooked = await Slot.countDocuments({ business: business._id, isBooked: false });
+    const totalBooked = await Slot.countDocuments({ business: business._id, isBooked: true });
+
+    const today = new Date().toISOString().slice(0, 10);
+    const todaySlots = await Slot.countDocuments({ business: business._id, date: today });
+    const todayBooked = await Slot.countDocuments({ business: business._id, date: today, isBooked: true });
+
+    const dateRanges = await Slot.aggregate([
+      { $match: { business: business._id } },
+      { $group: { _id: null, minDate: { $min: '$date' }, maxDate: { $max: '$date' } } },
+    ]);
+
+    res.json({
+      total,
+      totalUnbooked,
+      totalBooked,
+      todaySlots,
+      todayBooked,
+      dateRange: dateRanges[0] ? { from: dateRanges[0].minDate, to: dateRanges[0].maxDate } : null,
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
 module.exports = {
   createSlot,
   createBulkSlots,
@@ -384,4 +472,8 @@ module.exports = {
   updateSlot,
   deleteSlot,
   cleanupPastSlots,
+  deleteSlotsByDate,
+  deleteSlotsByRange,
+  deleteAllSlots,
+  getSlotStats,
 };

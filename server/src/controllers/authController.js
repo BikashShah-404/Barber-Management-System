@@ -90,6 +90,7 @@ const updateProfile = async (req, res) => {
     if (phone !== undefined) user.phone = phone;
     if (address !== undefined) user.address = address;
     if (avatar !== undefined) user.avatar = avatar;
+    if (req.file) user.avatar = `/uploads/${req.file.filename}`;
 
     await user.save();
     res.json({ message: 'Profile information updated successfully', user });

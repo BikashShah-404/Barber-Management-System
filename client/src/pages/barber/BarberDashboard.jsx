@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import {
   Building2,
   Calendar,
@@ -22,6 +22,7 @@ import { Card, Badge } from '../../components/ui/Card'
 import { Input, Textarea, Select } from '../../components/ui/Input'
 import { PageLoader } from '../../components/ui/Spinner'
 import { EmptyState } from '../../components/ui/EmptyState'
+import LocationPicker from '../../components/ui/LocationPicker'
 import { formatPrice, statusColor, cn } from '../../lib/utils'
 
 const TABS = [
@@ -41,6 +42,7 @@ export default function BarberDashboard() {
   const [saving, setSaving] = useState(false)
   const [bookings, setBookings] = useState([])
   const [slots, setSlots] = useState([])
+  const [slotStats, setSlotStats] = useState(null)
   const [slotDate, setSlotDate] = useState(new Date().toISOString().slice(0, 10))
   const [imageFiles, setImageFiles] = useState([])
   const [imagePreviews, setImagePreviews] = useState([])
@@ -74,7 +76,7 @@ export default function BarberDashboard() {
   const [recurringSlot, setRecurringSlot] = useState({
     startDate: new Date().toISOString().slice(0, 10),
     endDate: '',
-    days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
+    days: ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'],
     startTime: '10:00',
     endTime: '17:00',
     intervalMinutes: 15,
@@ -89,6 +91,8 @@ export default function BarberDashboard() {
     name: user?.name || '',
     phone: user?.phone || '',
   })
+  const [avatarFile, setAvatarFile] = useState(null)
+  const [avatarPreview, setAvatarPreview] = useState(user?.avatar || null)
 
   const loadBusiness = async () => {
     setLoading(true)
@@ -137,13 +141,22 @@ export default function BarberDashboard() {
     }
   }
 
+  const loadSlotStats = async () => {
+    try {
+      const { data } = await api.get('/slots/stats')
+      setSlotStats(data)
+    } catch {
+      setSlotStats(null)
+    }
+  }
+
   useEffect(() => {
     loadBusiness()
   }, [])
 
   useEffect(() => {
     if (tab === 'bookings') loadBookings()
-    if (tab === 'slots' && business) loadSlots()
+    if (tab === 'slots' && business) { loadSlots(); loadSlotStats() }
   }, [tab, business])
 
   useEffect(() => {
@@ -256,7 +269,7 @@ export default function BarberDashboard() {
     }
     try {
       const { data } = await api.post('/slots/recurring', recurringSlot)
-      toast.success(`${data.message} — ${data.totalCreated} slots across ${data.dates?.length || 0} days`)
+      toast.success(`${data.totalDeleted ? `Replaced ${data.totalDeleted} old slots · ` : ''}Created ${data.totalCreated} new slots across ${data.dates?.length || 0} days`)
       loadSlots()
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed')
@@ -279,6 +292,45 @@ export default function BarberDashboard() {
       await api.delete(`/slots/${id}`)
       toast.success('Slot removed')
       loadSlots()
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed')
+    }
+  }
+
+  const deleteTodaySlots = async () => {
+    if (!confirm(`Remove all unbooked slots for ${slotDate}?`)) return
+    try {
+      const { data } = await api.delete(`/slots/date/${slotDate}`)
+      toast.success(data.message)
+      loadSlots()
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed')
+    }
+  }
+
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [deleteRange, setDeleteRange] = useState({ start: '', end: '' })
+
+  const deleteSlotsInRange = async () => {
+    if (!deleteRange.start || !deleteRange.end) return toast.error('Select start and end date')
+    if (!confirm(`Remove all unbooked slots from ${deleteRange.start} to ${deleteRange.end}?`)) return
+    try {
+      const { data } = await api.delete('/slots/range', { data: { startDate: deleteRange.start, endDate: deleteRange.end } })
+      toast.success(data.message)
+      loadSlots()
+      loadSlotStats()
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed')
+    }
+  }
+
+  const deleteAllSlots = async () => {
+    if (!confirm('Delete ALL unbooked slots? This cannot be undone.')) return
+    try {
+      const { data } = await api.delete('/slots/all')
+      toast.success(data.message)
+      loadSlots()
+      loadSlotStats()
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed')
     }
@@ -307,12 +359,20 @@ export default function BarberDashboard() {
 
   const saveProfile = async (e) => {
     e.preventDefault()
+    setSaving(true)
     try {
-      const { data } = await api.put('/auth/profile', profile)
+      const formData = new FormData()
+      formData.append('name', profile.name)
+      formData.append('phone', profile.phone)
+      if (avatarFile) formData.append('avatar', avatarFile)
+
+      const { data } = await api.put('/auth/profile', formData)
       updateUser(data.user)
       toast.success(data.message)
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -380,61 +440,80 @@ export default function BarberDashboard() {
             <h2 className="font-display text-2xl">
               {business ? 'Update business' : 'Create business profile'}
             </h2>
-            <form onSubmit={saveBusiness} className="mt-5 space-y-4">
-              <div className="grid gap-4 sm:grid-cols-2">
-                <Input
-                  label="Business name"
-                  required
-                  value={bizForm.name}
-                  onChange={(e) => setBizForm({ ...bizForm, name: e.target.value })}
-                />
-                <Input
-                  label="City"
-                  value={bizForm.city}
-                  onChange={(e) => setBizForm({ ...bizForm, city: e.target.value })}
-                />
-                <div className="sm:col-span-2">
+            <form onSubmit={saveBusiness} className="mt-6 space-y-8">
+              {/* Basic Details */}
+              <div className="space-y-4">
+                <div className="border-b border-stone-200 pb-3">
+                  <h3 className="text-lg font-medium text-ink">Basic Details</h3>
+                  <p className="text-sm text-stone-500">Essential information about your shop.</p>
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
                   <Input
-                    label="Address"
+                    label="Business name"
                     required
-                    value={bizForm.address}
-                    onChange={(e) => setBizForm({ ...bizForm, address: e.target.value })}
+                    value={bizForm.name}
+                    onChange={(e) => setBizForm({ ...bizForm, name: e.target.value })}
                   />
-                </div>
-                <div className="sm:col-span-2">
-                  <Textarea
-                    label="Description"
-                    value={bizForm.description}
-                    onChange={(e) => setBizForm({ ...bizForm, description: e.target.value })}
+                  <Input
+                    label="Facilities (comma separated)"
+                    value={bizForm.facilities}
+                    onChange={(e) => setBizForm({ ...bizForm, facilities: e.target.value })}
+                    placeholder="WiFi, AC, Parking"
                   />
+                  <div className="sm:col-span-2">
+                    <Textarea
+                      label="Description"
+                      value={bizForm.description}
+                      onChange={(e) => setBizForm({ ...bizForm, description: e.target.value })}
+                    />
+                  </div>
                 </div>
-                <Input
-                  label="Phone"
-                  value={bizForm.phone}
-                  onChange={(e) => setBizForm({ ...bizForm, phone: e.target.value })}
-                />
-                <Input
-                  label="Facilities (comma separated)"
-                  value={bizForm.facilities}
-                  onChange={(e) => setBizForm({ ...bizForm, facilities: e.target.value })}
-                  placeholder="WiFi, AC, Parking"
-                />
-                <Input
-                  label="Latitude"
-                  value={bizForm.latitude}
-                  onChange={(e) => setBizForm({ ...bizForm, latitude: e.target.value })}
-                />
-                <Input
-                  label="Longitude"
-                  value={bizForm.longitude}
-                  onChange={(e) => setBizForm({ ...bizForm, longitude: e.target.value })}
-                />
               </div>
 
-              {/* Image Upload Section */}
-              <div className="sm:col-span-2">
-                <label className="text-sm font-medium text-stone-700">Shop Images</label>
-                <p className="mt-1 text-xs text-stone-500">Up to 5 images. First image becomes the cover.</p>
+              {/* Contact & Location */}
+              <div className="space-y-4">
+                <div className="border-b border-stone-200 pb-3">
+                  <h3 className="text-lg font-medium text-ink">Contact & Location</h3>
+                  <p className="text-sm text-stone-500">Where customers can find you.</p>
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Input
+                    label="Phone"
+                    value={bizForm.phone}
+                    onChange={(e) => setBizForm({ ...bizForm, phone: e.target.value })}
+                  />
+                  <Input
+                    label="City"
+                    value={bizForm.city}
+                    onChange={(e) => setBizForm({ ...bizForm, city: e.target.value })}
+                  />
+                  <div className="sm:col-span-2">
+                    <Input
+                      label="Address"
+                      required
+                      value={bizForm.address}
+                      onChange={(e) => setBizForm({ ...bizForm, address: e.target.value })}
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="text-sm font-medium text-stone-700">Map Location</label>
+                    <div className="mt-1.5 h-64 overflow-hidden rounded-xl border border-stone-200">
+                      <LocationPicker
+                        latitude={bizForm.latitude}
+                        longitude={bizForm.longitude}
+                        onChange={(lat, lng) => setBizForm({ ...bizForm, latitude: lat, longitude: lng })}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Media */}
+              <div className="space-y-4">
+                <div className="border-b border-stone-200 pb-3">
+                  <h3 className="text-lg font-medium text-ink">Shop Images</h3>
+                  <p className="text-sm text-stone-500">Up to 5 images. First image becomes the cover.</p>
+                </div>
                 <div className="mt-3 flex flex-wrap gap-3">
                   {business?.images?.map((img, i) => (
                     <div key={`existing-${i}`} className="relative h-24 w-24 overflow-hidden rounded-xl border border-stone-200">
@@ -477,7 +556,7 @@ export default function BarberDashboard() {
                 </div>
               </div>
 
-              <div className="sm:col-span-2">
+              <div className="flex justify-end pt-4">
                 <Button type="submit" variant="bronze" loading={saving}>
                   {business ? 'Save changes' : 'Submit for approval'}
                 </Button>
@@ -487,6 +566,31 @@ export default function BarberDashboard() {
             <hr className="my-8 border-stone-100" />
             <h3 className="font-display text-xl">Owner profile</h3>
             <form onSubmit={saveProfile} className="mt-4 grid max-w-md gap-4">
+              <div className="flex items-center gap-4 mb-2">
+                <div className="h-16 w-16 overflow-hidden rounded-full border border-stone-200 bg-stone-50">
+                  {avatarPreview ? (
+                    <img src={avatarPreview} alt="Preview" className="h-full w-full object-cover" />
+                  ) : (
+                    <div className="flex h-full items-center justify-center text-stone-400">
+                      <ImagePlus className="h-6 w-6" />
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-stone-700">Profile Picture</label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="mt-1 block w-full text-sm text-stone-500 file:mr-4 file:rounded-full file:border-0 file:bg-bronze/10 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-bronze hover:file:bg-bronze/20 cursor-pointer"
+                    onChange={(e) => {
+                      if (e.target.files[0]) {
+                        setAvatarFile(e.target.files[0])
+                        setAvatarPreview(URL.createObjectURL(e.target.files[0]))
+                      }
+                    }}
+                  />
+                </div>
+              </div>
               <Input
                 label="Name"
                 value={profile.name}
@@ -497,7 +601,7 @@ export default function BarberDashboard() {
                 value={profile.phone}
                 onChange={(e) => setProfile({ ...profile, phone: e.target.value })}
               />
-              <Button type="submit" variant="outline">
+              <Button type="submit" variant="outline" loading={saving}>
                 Update profile
               </Button>
             </form>
@@ -723,11 +827,96 @@ export default function BarberDashboard() {
                         onChange={(e) => setSlotDate(e.target.value)}
                         className="h-10 rounded-xl border border-stone-200 px-3 text-sm"
                       />
+                      <Button variant="outline" size="sm" onClick={deleteTodaySlots}>
+                        <Trash2 className="h-3.5 w-3.5" /> Delete today
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => setShowDeleteDialog(true)}>
+                        <Trash2 className="h-3.5 w-3.5" /> Delete range
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={deleteAllSlots}>
+                        <Trash2 className="h-3.5 w-3.5" /> Delete all
+                      </Button>
                       <Button variant="outline" size="sm" onClick={cleanupSlots}>
                         <Trash2 className="h-3.5 w-3.5" /> Clean past
                       </Button>
                     </div>
                   </div>
+
+                  {slotStats && (
+                    <div className="mt-4 grid grid-cols-5 gap-2">
+                      <div className="flex flex-col items-center justify-center rounded-xl border border-stone-200 bg-white px-1.5 py-2.5 shadow-sm">
+                        <p className="text-[10px] font-medium uppercase tracking-wide text-stone-500">Total</p>
+                        <p className="text-lg font-bold text-ink">{slotStats.total}</p>
+                      </div>
+                      <div className="flex flex-col items-center justify-center rounded-xl border border-green-200 bg-green-50 px-1.5 py-2.5 shadow-sm">
+                        <p className="text-[10px] font-medium uppercase tracking-wide text-green-600">Available</p>
+                        <p className="text-lg font-bold text-green-700">{slotStats.totalUnbooked}</p>
+                      </div>
+                      <div className="flex flex-col items-center justify-center rounded-xl border border-amber-200 bg-amber-50 px-1.5 py-2.5 shadow-sm">
+                        <p className="text-[10px] font-medium uppercase tracking-wide text-amber-600">Booked</p>
+                        <p className="text-lg font-bold text-amber-700">{slotStats.totalBooked}</p>
+                      </div>
+                      <div className="flex flex-col items-center justify-center rounded-xl border border-stone-200 bg-white px-1.5 py-2.5 shadow-sm">
+                        <p className="text-[10px] font-medium uppercase tracking-wide text-stone-500">Today</p>
+                        <p className="text-lg font-bold text-ink">{slotStats.todaySlots}</p>
+                        <p className="text-[9px] text-stone-400">{slotStats.todayBooked} booked</p>
+                      </div>
+                      {slotStats.dateRange && (
+                        <div className="flex flex-col items-center justify-center rounded-xl border border-stone-200 bg-cream px-1.5 py-2.5 shadow-sm">
+                          <p className="text-[10px] font-medium uppercase tracking-wide text-stone-500">Range</p>
+                          <p className="text-xs font-semibold text-ink leading-tight text-center">{slotStats.dateRange.from}<br/>{slotStats.dateRange.to}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Modal: Delete range */}
+                  <AnimatePresence>
+                    {showDeleteDialog && (
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+                        onClick={() => setShowDeleteDialog(false)}
+                      >
+                        <motion.div
+                          initial={{ scale: 0.95, opacity: 0 }}
+                          animate={{ scale: 1, opacity: 1 }}
+                          exit={{ scale: 0.95, opacity: 0 }}
+                          onClick={(e) => e.stopPropagation()}
+                          className="mx-4 w-full max-w-md rounded-2xl border border-stone-200 bg-white p-6 shadow-2xl"
+                        >
+                          <h3 className="font-display text-xl">Delete slots by range</h3>
+                          <p className="mt-1 text-sm text-stone-500">
+                            Removes all unbooked slots in the date range.
+                          </p>
+                          <div className="mt-5 space-y-3">
+                            <Input
+                              label="From"
+                              type="date"
+                              value={deleteRange.start}
+                              onChange={(e) => setDeleteRange({ ...deleteRange, start: e.target.value })}
+                            />
+                            <Input
+                              label="To"
+                              type="date"
+                              value={deleteRange.end}
+                              onChange={(e) => setDeleteRange({ ...deleteRange, end: e.target.value })}
+                            />
+                            <div className="flex justify-end gap-3 pt-2">
+                              <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>
+                                Cancel
+                              </Button>
+                              <Button variant="danger" onClick={deleteSlotsInRange}>
+                                <Trash2 className="h-4 w-4" /> Delete range
+                              </Button>
+                            </div>
+                          </div>
+                        </motion.div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                   <div className="mt-4 max-h-96 space-y-2 overflow-y-auto">
                     {slots.map((s) => (
                       <div
@@ -821,7 +1010,7 @@ export default function BarberDashboard() {
           <Card className="max-w-lg">
             <h2 className="font-display text-2xl">Billing details</h2>
             <p className="mt-1 text-sm text-stone-500">
-              Offline / reference details only — no online payments in this version.
+              Offline / reference details only.
             </p>
             {!business ? (
               <p className="mt-4 text-sm text-stone-500">Create business first.</p>

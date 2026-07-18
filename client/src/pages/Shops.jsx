@@ -1,10 +1,12 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
+import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet'
+import L from 'leaflet'
 import gsap from 'gsap'
 import { useGSAP } from '@gsap/react'
 
-import { Search, Filter, Navigation, Loader2 } from 'lucide-react'
+import { Search, Filter, Navigation, Loader2, MapPin } from 'lucide-react'
 import { toast } from 'sonner'
 import api from '../lib/api'
 import ShopCard from '../components/ShopCard'
@@ -12,6 +14,31 @@ import { PageLoader } from '../components/ui/Spinner'
 import { EmptyState } from '../components/ui/EmptyState'
 import { Input } from '../components/ui/Input'
 import { Button } from '../components/ui/Button'
+
+const KATHMANDU = [27.7172, 85.324]
+
+const pinIcon = new L.Icon({
+  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  shadowSize: [41, 41],
+})
+
+function MapClickHandler({ onPick }) {
+  useMapEvents({ click(e) { onPick(e.latlng.lat, e.latlng.lng) } })
+  return null
+}
+
+function MapRecenter({ center }) {
+  const map = useMap()
+  useEffect(() => {
+    if (center) map.setView(center, 14)
+  }, [center, map])
+  return null
+}
 
 export default function Shops() {
   const root = useRef(null)
@@ -24,6 +51,8 @@ export default function Shops() {
   const [city, setCity] = useState(params.get('city') || '')
 
   const [locating, setLocating] = useState(false)
+  const [showMap, setShowMap] = useState(false)
+  const [mapPick, setMapPick] = useState(null)
 
   const load = async (query = {}) => {
     setLoading(true)
@@ -151,6 +180,15 @@ export default function Shops() {
           <Button
             type="button"
             variant="outline"
+            onClick={() => { setShowMap((v) => !v); setMapPick(null) }}
+            className="text-stone-600"
+          >
+            <MapPin className="h-4 w-4" />
+            {showMap ? 'Close map' : 'Pick on map'}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
             onClick={findNearMe}
             disabled={locating}
             className="text-stone-600"
@@ -167,6 +205,53 @@ export default function Shops() {
           </Button>
         </div>
       </form>
+
+      <AnimatePresence>
+        {showMap && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.3 }}
+            className="overflow-hidden"
+          >
+            <div className="mt-4 overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm">
+              <div className="flex items-center justify-between px-4 pt-3">
+                <p className="text-sm text-stone-500">Click anywhere on the map to place a pin</p>
+                {mapPick && (
+                  <Button
+                    size="sm"
+                    variant="bronze"
+                    onClick={() => {
+                      setQ('')
+                      setService('')
+                      setCity('')
+                      setShowMap(false)
+                      setParams({ lat: String(mapPick.lat.toFixed(5)), lng: String(mapPick.lng.toFixed(5)) })
+                    }}
+                  >
+                    <Navigation className="h-3.5 w-3.5" /> Find shops here
+                  </Button>
+                )}
+              </div>
+              <MapContainer
+                center={KATHMANDU}
+                zoom={13}
+                className="h-72 w-full mt-2"
+                scrollWheelZoom={true}
+              >
+                <TileLayer
+                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                />
+                <MapClickHandler onPick={(lat, lng) => setMapPick({ lat, lng })} />
+                <MapRecenter center={mapPick ? [mapPick.lat, mapPick.lng] : null} />
+                {mapPick && <Marker position={[mapPick.lat, mapPick.lng]} icon={pinIcon} />}
+              </MapContainer>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <div className="mt-10">
         {loading ? (

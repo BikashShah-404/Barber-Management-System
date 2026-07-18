@@ -14,7 +14,7 @@ const router = express.Router();
 router.post('/register', upload.single('avatar'), register);
 router.post('/login', login);
 router.get('/me', protect, getMe);
-router.put('/profile', protect, updateProfile);
+router.put('/profile', protect, upload.single('avatar'), updateProfile);
 router.put('/password', protect, changePassword);
 
 module.exports = router;
