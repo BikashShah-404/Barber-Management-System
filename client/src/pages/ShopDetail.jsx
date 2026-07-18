@@ -105,39 +105,41 @@ export default function ShopDetail() {
 
   return (
     <div className="mx-auto max-w-[1300px] px-4 py-10 sm:px-6">
+      {/* Top Section: Hero + About (Combined Card) */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        className="overflow-hidden rounded-[2rem] border border-stone-200"
+        className="flex flex-col lg:flex-row overflow-hidden rounded-[2rem] border border-stone-200 bg-white shadow-sm"
       >
-        <div className="relative aspect-[21/9] max-h-80 bg-stone-200">
+        {/* Left: Hero */}
+        <div className="relative w-full lg:w-3/5 min-h-[300px] bg-stone-200">
           <img
             src={cover}
             alt={shop.name}
-            className="h-full w-full object-cover"
+            className="absolute inset-0 h-full w-full object-cover"
             onError={(e) => {
               e.currentTarget.src =
                 'https://images.unsplash.com/photo-1598887142487-3c854d19bb35?w=1200&q=80&auto=format&fit=crop'
             }}
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-ink/70 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-ink/80 via-ink/20 to-transparent" />
           <div className="absolute bottom-0 left-0 p-6 text-cream sm:p-8">
             <div className="flex items-end gap-4">
               {shop.owner?.avatar ? (
                 <img
                   src={shop.owner.avatar}
                   alt={shop.owner?.name || 'Owner'}
-                  className="hidden h-14 w-14 rounded-full border-2 border-white object-cover shadow-lg sm:block"
+                  className="hidden h-14 w-14 shrink-0 rounded-full border-2 border-white object-cover shadow-lg sm:block"
                 />
               ) : (
-                <div className="hidden h-14 w-14 items-center justify-center rounded-full border-2 border-white bg-stone-400 shadow-lg sm:flex">
+                <div className="hidden h-14 w-14 shrink-0 items-center justify-center rounded-full border-2 border-white bg-stone-400 shadow-lg sm:flex">
                   <User className="h-6 w-6 text-stone-200" />
                 </div>
               )}
               <div>
                 <h1 className="font-display text-4xl sm:text-5xl">{shop.name}</h1>
                 <p className="mt-2 flex items-center gap-2 text-sm text-stone-200">
-                  <MapPin className="h-4 w-4" />
+                  <MapPin className="h-4 w-4 shrink-0" />
                   {shop.address}
                   {shop.city ? `, ${shop.city}` : ''}
                 </p>
@@ -145,51 +147,53 @@ export default function ShopDetail() {
             </div>
           </div>
         </div>
+
+        {/* Right: About */}
+        <div className="w-full lg:w-2/5 border-t border-stone-200 lg:border-t-0 lg:border-l p-6 sm:p-8 flex flex-col justify-center">
+          <h2 className="font-display text-2xl">About</h2>
+          <p className="mt-2 text-sm leading-relaxed text-stone-600">
+            {shop.description || 'No description provided.'}
+          </p>
+          <div className="mt-4 flex flex-wrap gap-4 text-sm text-stone-600">
+            {shop.phone && (
+              <span className="flex items-center gap-1.5">
+                <Phone className="h-4 w-4 text-bronze" /> {shop.phone}
+              </span>
+            )}
+          </div>
+          {shop.owner && (
+            <div className="mt-4 flex items-center gap-3 rounded-2xl bg-cream px-4 py-3">
+              {shop.owner.avatar ? (
+                <img
+                  src={shop.owner.avatar}
+                  alt={shop.owner.name}
+                  className="h-10 w-10 shrink-0 rounded-full object-cover"
+                />
+              ) : (
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-stone-300">
+                  <User className="h-4 w-4 text-stone-500" />
+                </div>
+              )}
+              <div>
+                <p className="text-sm font-medium text-ink">{shop.owner.name}</p>
+                <p className="text-xs text-stone-500">Shop Owner</p>
+              </div>
+            </div>
+          )}
+          {shop.facilities?.length > 0 && (
+            <div className="mt-4 flex flex-wrap gap-2">
+              {shop.facilities.map((f) => (
+                <Badge key={f} className="border-stone-200 bg-cream text-stone-700">
+                  <Check className="mr-1 h-3 w-3" /> {f}
+                </Badge>
+              ))}
+            </div>
+          )}
+        </div>
       </motion.div>
 
       <div className="mt-8 grid gap-8 lg:grid-cols-5">
         <div className="space-y-6 lg:col-span-3">
-          <Card>
-            <h2 className="font-display text-2xl">About</h2>
-            <p className="mt-2 text-sm leading-relaxed text-stone-600">
-              {shop.description || 'No description provided.'}
-            </p>
-            <div className="mt-4 flex flex-wrap gap-4 text-sm text-stone-600">
-              {shop.phone && (
-                <span className="flex items-center gap-1.5">
-                  <Phone className="h-4 w-4 text-bronze" /> {shop.phone}
-                </span>
-              )}
-            </div>
-            {shop.owner && (
-              <div className="mt-4 flex items-center gap-3 rounded-2xl bg-cream px-4 py-3">
-                {shop.owner.avatar ? (
-                  <img
-                    src={shop.owner.avatar}
-                    alt={shop.owner.name}
-                    className="h-10 w-10 rounded-full object-cover"
-                  />
-                ) : (
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-stone-300">
-                    <User className="h-4 w-4 text-stone-500" />
-                  </div>
-                )}
-                <div>
-                  <p className="text-sm font-medium text-ink">{shop.owner.name}</p>
-                  <p className="text-xs text-stone-500">Shop Owner</p>
-                </div>
-              </div>
-            )}
-            {shop.facilities?.length > 0 && (
-              <div className="mt-4 flex flex-wrap gap-2">
-                {shop.facilities.map((f) => (
-                  <Badge key={f} className="border-stone-200 bg-cream text-stone-700">
-                    <Check className="mr-1 h-3 w-3" /> {f}
-                  </Badge>
-                ))}
-              </div>
-            )}
-          </Card>
 
           <Card>
             <h2 className="font-display text-2xl">Services</h2>

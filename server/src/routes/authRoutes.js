@@ -7,10 +7,11 @@ const {
   changePassword,
 } = require('../controllers/authController');
 const { protect } = require('../middleware/auth');
+const upload = require('../middleware/upload');
 
 const router = express.Router();
 
-router.post('/register', register);
+router.post('/register', upload.single('avatar'), register);
 router.post('/login', login);
 router.get('/me', protect, getMe);
 router.put('/profile', protect, updateProfile);

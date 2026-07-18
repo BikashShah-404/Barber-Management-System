@@ -179,123 +179,115 @@ export default function Contact() {
             </div>
           ))}
 
-          {/* Map Placeholder */}
-          <div className="contact-map relative overflow-hidden rounded-3xl border border-stone-200 shadow-sm">
-            <div className="relative aspect-[4/3] bg-gradient-to-br from-sand via-cream-dark to-sand">
-              {/* Decorative circles */}
-              <div className="absolute left-1/2 top-1/2 h-32 w-32 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-dashed border-bronze/30" />
-              <div className="absolute left-1/2 top-1/2 h-48 w-48 -translate-x-1/2 -translate-y-1/2 rounded-full border border-bronze/15" />
-              <div className="absolute left-1/2 top-1/2 h-64 w-64 -translate-x-1/2 -translate-y-1/2 rounded-full border border-bronze/10" />
+          {/* Map */}
+          <div className="contact-map relative overflow-hidden rounded-3xl border border-stone-200 shadow-sm aspect-[4/3]">
+            <iframe
+              src="https://maps.google.com/maps?q=Kathmandu+College+of+Technology&t=&z=17&ie=UTF8&iwloc=&output=embed"
+              width="100%"
+              height="100%"
+              style={{ border: 0 }}
+              allowFullScreen=""
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+              className="absolute inset-0 h-full w-full"
+              title="Location Map"
+            />
+          </div>
+        </div>
 
-              {/* Center pin */}
-              <div className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-bronze text-white shadow-lg shadow-bronze/30">
-                  <MapPin className="h-5 w-5" />
-                </div>
-                <div className="mt-1 h-3 w-3 rounded-full bg-bronze/40" />
+        {/* Right — Office Hours & Form */}
+        <div className="lg:col-span-3 flex flex-col gap-6 self-center">
+          {/* Office Hours Card */}
+          <div className="office-hours flex flex-col gap-4 rounded-[2rem] border border-stone-200 bg-gradient-to-r from-sand/60 to-cream p-6 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-8">
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-bronze text-white">
+                <Clock className="h-5 w-5" />
               </div>
-
-              {/* Label */}
-              <div className="absolute bottom-4 left-4 right-4 rounded-2xl bg-white/90 p-3 backdrop-blur-sm">
-                <p className="text-sm font-medium text-ink">Kathmandu, Nepal</p>
-                <p className="text-xs text-stone-500">
-                  Serving local barbershops valley-wide
+              <div>
+                <p className="text-sm font-semibold uppercase tracking-wider text-bronze">
+                  Office Hours
+                </p>
+                <p className="text-sm text-stone-600">
+                  We're here when you need us
                 </p>
               </div>
             </div>
-          </div>
-        </div>
 
-        {/* Right — Form */}
-        <form
-          onSubmit={onSubmit}
-          className="contact-form space-y-5 rounded-[2rem] border border-stone-200 bg-white p-6 shadow-sm sm:p-8 lg:col-span-3"
-        >
-          <div>
-            <h2 className="font-display text-3xl text-ink">Send a message</h2>
-            <p className="mt-1 text-sm text-stone-500">
-              Fill out the form and we'll get back to you promptly.
-            </p>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Input
-              label="Name"
-              required
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              placeholder="Your name"
-            />
-            <Input
-              label="Email"
-              type="email"
-              required
-              value={form.email}
-              onChange={(e) => setForm({ ...form, email: e.target.value })}
-              placeholder="you@email.com"
-            />
+            <div className="flex flex-wrap items-center gap-3">
+              {[
+                { day: 'Mon – Fri', time: '10 am – 5 pm' },
+                { day: 'Saturday', time: 'Closed' },
+                { day: 'Sunday', time: 'By appointment' },
+              ].map((slot) => (
+                <div
+                  key={slot.day}
+                  className="rounded-2xl border border-stone-200 bg-white px-4 py-2.5 shadow-sm"
+                >
+                  <p className="text-xs font-semibold text-ink">{slot.day}</p>
+                  <p className="text-xs text-stone-500">{slot.time}</p>
+                </div>
+              ))}
+            </div>
           </div>
 
-          <Select
-            label="Topic"
-            value={form.subject}
-            onChange={(e) => setForm({ ...form, subject: e.target.value })}
+          {/* Form */}
+          <form
+            onSubmit={onSubmit}
+            className="contact-form space-y-5 rounded-[2rem] border border-stone-200 bg-white p-6 shadow-sm sm:p-8"
           >
-            <option value="general">General question</option>
-            <option value="owner">List my shop</option>
-            <option value="support">Technical support</option>
-            <option value="partnership">Partnership</option>
-          </Select>
-
-          <Textarea
-            label="Message"
-            required
-            value={form.message}
-            onChange={(e) => setForm({ ...form, message: e.target.value })}
-            placeholder="How can we help?"
-            className="min-h-36"
-          />
-
-          <Button type="submit" variant="bronze" size="lg" loading={loading}>
-            <Send className="h-4 w-4" /> Send message
-          </Button>
-        </form>
-      </section>
-
-      {/* ──────────────── 3. Office Hours Strip ──────────────── */}
-      <section className="border-y border-stone-200 bg-gradient-to-r from-sand/60 via-cream to-sand/60">
-        <div className="office-hours mx-auto flex max-w-[1300px] flex-col items-center gap-4 px-4 py-12 text-center sm:flex-row sm:justify-between sm:px-6 sm:text-left">
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-bronze text-white">
-              <Clock className="h-5 w-5" />
-            </div>
             <div>
-              <p className="text-sm font-semibold uppercase tracking-wider text-bronze">
-                Office Hours
-              </p>
-              <p className="text-sm text-stone-600">
-                We're here when you need us
+              <h2 className="font-display text-3xl text-ink">Send a message</h2>
+              <p className="mt-1 text-sm text-stone-500">
+                Fill out the form and we'll get back to you promptly.
               </p>
             </div>
-          </div>
 
-          <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-5">
-            {[
-              { day: 'Mon – Fri', time: '10 am – 5 pm' },
-              { day: 'Saturday', time: 'By appointment' },
-              { day: 'Sunday', time: 'Closed' },
-            ].map((slot) => (
-              <div
-                key={slot.day}
-                className="rounded-2xl border border-stone-200 bg-white px-4 py-2.5 shadow-sm"
-              >
-                <p className="text-xs font-semibold text-ink">{slot.day}</p>
-                <p className="text-xs text-stone-500">{slot.time}</p>
-              </div>
-            ))}
-          </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Input
+                label="Name"
+                required
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                placeholder="Your name"
+              />
+              <Input
+                label="Email"
+                type="email"
+                required
+                value={form.email}
+                onChange={(e) => setForm({ ...form, email: e.target.value })}
+                placeholder="you@email.com"
+              />
+            </div>
+
+            <Select
+              label="Topic"
+              value={form.subject}
+              onChange={(e) => setForm({ ...form, subject: e.target.value })}
+            >
+              <option value="general">General question</option>
+              <option value="owner">List my shop</option>
+              <option value="support">Technical support</option>
+              <option value="partnership">Partnership</option>
+            </Select>
+
+            <Textarea
+              label="Message"
+              required
+              value={form.message}
+              onChange={(e) => setForm({ ...form, message: e.target.value })}
+              placeholder="How can we help?"
+              className="min-h-36"
+            />
+
+            <Button type="submit" variant="bronze" size="lg" loading={loading}>
+              <Send className="h-4 w-4" /> Send message
+            </Button>
+          </form>
         </div>
       </section>
+
+
 
       {/* ──────────────── 4. FAQ Mini Section ──────────────── */}
       <section className="faq-section mx-auto max-w-[1300px] px-4 py-20 sm:px-6">

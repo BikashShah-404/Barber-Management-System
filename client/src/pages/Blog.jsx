@@ -9,6 +9,7 @@ import PageHero from '../components/PageHero'
 import { Badge } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { blogPosts } from '../data/siteContent'
+import { cn } from '../lib/utils'
 
 gsap.registerPlugin(ScrollTrigger, useGSAP)
 
@@ -90,16 +91,17 @@ export default function Blog() {
 
       <section className="mx-auto max-w-[1300px] px-4 py-16 sm:px-6">
         {/* ── 2. Category Filters ── */}
-        <div className="filter-bar mb-12 flex gap-2 overflow-x-auto pb-2 scrollbar-none">
+        <div className="filter-bar mb-10 flex flex-wrap items-center justify-center gap-2">
           {categories.map((cat) => (
             <button
               key={cat}
               onClick={() => setActiveCategory(cat)}
-              className={`filter-pill shrink-0 cursor-pointer rounded-full border px-4 py-2 text-sm font-medium transition-all duration-300 ${
+              className={cn(
+                'filter-pill cursor-pointer rounded-full px-5 py-2 text-sm font-medium transition-colors duration-300',
                 activeCategory === cat
-                  ? 'border-bronze bg-bronze text-white shadow-md shadow-bronze/20'
-                  : 'border-stone-200 bg-white text-muted hover:border-bronze/40 hover:text-ink'
-              }`}
+                  ? 'bg-bronze text-white shadow-md shadow-bronze/25'
+                  : 'bg-sand/70 text-muted hover:bg-sand hover:text-ink'
+              )}
             >
               {cat}
             </button>
@@ -110,10 +112,10 @@ export default function Blog() {
         {featured && (
           <Link
             to={`/blog/${featured.slug}`}
-            className="blog-featured group relative grid overflow-hidden rounded-[2rem] border border-stone-200/80 bg-white shadow-sm transition-shadow duration-500 hover:shadow-xl lg:grid-cols-2"
+            className="blog-featured group relative grid overflow-hidden rounded-[2rem] border border-stone-200/80 bg-white shadow-sm transition-shadow duration-500 hover:shadow-xl lg:grid-cols-2 lg:h-[300px]"
           >
             {/* Image side — ken-burns zoom on hover */}
-            <div className="aspect-[16/10] overflow-hidden lg:aspect-auto lg:min-h-[380px]">
+            <div className="aspect-[21/9] overflow-hidden lg:aspect-auto lg:h-full">
               <img
                 src={featured.image}
                 alt={featured.title}
@@ -122,12 +124,12 @@ export default function Blog() {
             </div>
 
             {/* Content side */}
-            <div className="relative flex flex-col justify-center p-8 sm:p-10 lg:p-12">
+            <div className="relative flex flex-col justify-center p-4 sm:p-5 lg:p-5">
               {/* Decorative accent */}
               <div className="pointer-events-none absolute -right-12 -top-12 h-32 w-32 rounded-full bg-bronze/5 blur-2xl" />
 
-              <div className="flex flex-wrap items-center gap-3 text-xs">
-                <Badge className="border-bronze/20 bg-sand text-bronze">
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <Badge className="border-bronze/20 bg-sand text-bronze px-2 py-0.5">
                   {featured.category}
                 </Badge>
                 <span className="text-muted">
@@ -138,16 +140,16 @@ export default function Blog() {
                 </span>
               </div>
 
-              <h2 className="mt-5 font-display text-3xl leading-snug text-ink transition-colors duration-300 group-hover:text-bronze sm:text-4xl">
+              <h2 className="mt-2 font-display text-xl leading-tight text-ink transition-colors duration-300 group-hover:text-bronze sm:text-2xl">
                 {featured.title}
               </h2>
 
-              <p className="mt-4 text-sm leading-relaxed text-stone-500 sm:text-base">
+              <p className="mt-1.5 line-clamp-1 text-sm leading-relaxed text-stone-500">
                 {featured.excerpt}
               </p>
 
-              <span className="mt-8 inline-flex items-center gap-1.5 text-sm font-semibold text-bronze transition-transform duration-300 group-hover:translate-x-1">
-                Read article <ArrowUpRight className="h-4 w-4" />
+              <span className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-bronze transition-transform duration-300 group-hover:translate-x-1">
+                Read article <ArrowUpRight className="h-3.5 w-3.5" />
               </span>
             </div>
           </Link>

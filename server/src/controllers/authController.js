@@ -25,12 +25,18 @@ const register = async (req, res) => {
       return res.status(400).json({ message: 'Email already registered.' });
     }
 
+    let avatar = null;
+    if (req.file) {
+      avatar = `/uploads/${req.file.filename}`;
+    }
+
     const user = await User.create({
       name,
       email,
       password,
       phone: phone || '',
       role: userRole,
+      avatar,
     });
 
     const token = signToken(user._id);
